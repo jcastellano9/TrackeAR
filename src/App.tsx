@@ -6,8 +6,8 @@ import { ThemeProvider } from './contexts/ThemeContext';
 import Layout from './components/layout/Layout';
 import Dashboard from './pages/Dashboard';
 import Portfolio from './pages/Portfolio';
-import FinancialAnalysis from './pages/FinancialAnalysis';
-import FinancialSimulator from './pages/FinancialSimulator';
+import Analysis from './pages/Analysis.tsx';
+import Simulator from './pages/Simulator.tsx';
 import Profile from './pages/Profile';
 import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
@@ -48,8 +48,8 @@ function App() {
               }>
                 <Route index element={<Dashboard />} />
                 <Route path="portfolio" element={<Portfolio />} />
-                <Route path="analysis" element={<FinancialAnalysis />} />
-                <Route path="simulator" element={<FinancialSimulator />} />
+                <Route path="analysis" element={<Analysis />} />
+                <Route path="simulator" element={<Simulator />} />
                 <Route path="profile" element={<Profile />} />
               </Route>
             </Routes>

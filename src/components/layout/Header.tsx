@@ -24,8 +24,8 @@ const Header: React.FC = () => {
   const navItems = [
     { path: '/', label: 'Inicio', icon: <LayoutDashboard size={20} /> },
     { path: '/portfolio', label: 'Mi Cartera', icon: <Briefcase size={20} /> },
-    { path: '/analysis', label: 'Análisis Financiero', icon: <BarChart size={20} /> },
-    { path: '/simulator', label: 'Simulador Financiero', icon: <Calculator size={20} /> },
+    { path: '/analysis', label: 'Análisis', icon: <BarChart size={20} /> },
+    { path: '/simulator', label: 'Simulador', icon: <Calculator size={20} /> },
     { path: '/profile', label: 'Perfil', icon: <User size={20} /> },
   ];
 

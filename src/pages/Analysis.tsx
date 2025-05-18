@@ -72,7 +72,7 @@ const retryWithBackoff = async (
   }
 };
 
-const FinancialAnalysis: React.FC = () => {
+const Analysis: React.FC = () => {
   const supabase = useSupabase();
   const { user } = useAuth();
 
@@ -475,7 +475,7 @@ const FinancialAnalysis: React.FC = () => {
       >
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center space-x-2">
           <TrendingUp size={24} className="text-blue-600" />
-          <span>Análisis Financiero</span>
+          <span>Análisis</span>
         </h1>
       </motion.div>
 
@@ -701,4 +701,4 @@ const FinancialAnalysis: React.FC = () => {
 );
 }
 
-export default FinancialAnalysis;
+export default Analysis;

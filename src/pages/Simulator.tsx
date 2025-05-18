@@ -20,7 +20,7 @@ interface SimulationResult {
   effectiveRate: number;
 }
 
-const FinancialSimulator: React.FC = () => {
+const Simulator: React.FC = () => {
   const supabase = useSupabase();
   const { user } = useAuth();
 
@@ -250,7 +250,7 @@ const FinancialSimulator: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Simulador Financiero</h1>
+        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Simulador</h1>
         <p className="text-gray-600 dark:text-gray-300">Calcula rendimientos y compara alternativas de inversión</p>
       </motion.div>
 
@@ -842,4 +842,4 @@ const FinancialSimulator: React.FC = () => {
   );
 };
 
-export default FinancialSimulator;
+export default Simulator;
