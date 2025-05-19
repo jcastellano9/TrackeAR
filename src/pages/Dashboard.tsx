@@ -232,6 +232,7 @@ const Dashboard: React.FC = () => {
   // Fetch market data
   useEffect(() => {
     const fetchMarketData = async () => {
+      let combinedQuotes: DollarQuote[] = [];
       try {
         setLoadingQuotes(true);
 
@@ -256,7 +257,7 @@ const Dashboard: React.FC = () => {
             return index === -1 ? 99 : index;
           };
 
-          const combinedQuotes: DollarQuote[] = dolarApiRes.data.map((item: any) => {
+          combinedQuotes = dolarApiRes.data.map((item: any) => {
             const matched = comparaRes.data.find((d: any) => d.name === item.nombre);
             return {
               name: item.nombre,
@@ -277,11 +278,14 @@ const Dashboard: React.FC = () => {
         try {
           const res = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=ars,usd&include_24hr_change=true');
           const data = res.data;
+          // Get CCL rate from combinedQuotes
+          const cclQuote = combinedQuotes.find(q => q.name.toLowerCase().includes('contado'));
+          const cclRate = cclQuote?.sell ?? 1100;
           const formattedCryptoQuotes: CryptoQuote[] = [
             { name: 'USDT', price: data['tether'].ars, variation: data['tether'].ars_24h_change },
             { name: 'USDC', price: data['usd-coin'].ars, variation: data['usd-coin'].ars_24h_change },
-            { name: 'BTC', price: data['bitcoin'].ars, variation: data['bitcoin'].ars_24h_change },
-            { name: 'ETH', price: data['ethereum'].ars, variation: data['ethereum'].ars_24h_change }
+            { name: 'BTC', price: data['bitcoin'].ars / cclRate, variation: data['bitcoin'].ars_24h_change },
+            { name: 'ETH', price: data['ethereum'].ars / cclRate, variation: data['ethereum'].ars_24h_change }
           ];
           setCryptoQuotes(formattedCryptoQuotes);
         } catch (error) {
@@ -615,24 +619,24 @@ const Dashboard: React.FC = () => {
             <>
               <div className="space-y-3">
                 {dollarQuotes.map((quote, index) => (
-                  <div key={index} className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div key={index} className="grid grid-cols-12 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     {/* Nombre */}
-                    <div className="flex items-center">
+                    <div className="col-span-4 flex items-center">
                       <p className="font-medium text-gray-800 dark:text-gray-100">{quote.name}</p>
                     </div>
                     {/* Compra / Venta */}
-                    <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                    <div className="col-span-5 flex flex-wrap justify-end items-center gap-x-4 text-right">
                       <span className="flex items-center">
                         <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Compra:</span>
                         <span className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.buy)}</span>
                       </span>
-                      <span className="flex items-center mt-1 sm:mt-0">
+                      <span className="flex items-center">
                         <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Venta:</span>
                         <span className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.sell)}</span>
                       </span>
                     </div>
                     {/* Variación */}
-                    <div className="flex items-center sm:justify-end mt-2 sm:mt-0">
+                    <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
                       <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
                       </span>
@@ -678,24 +682,24 @@ const Dashboard: React.FC = () => {
           ) : cryptoQuotes.length > 0 ? (
             <div className="space-y-3">
               {cryptoQuotes
-                .filter(quote => quote.price > 0)
+                .filter(quote => quote && typeof quote.price === 'number' && !isNaN(quote.price) && quote.price > 0)
                 .map((quote, index) => (
-                  <div key={index} className="grid grid-cols-2 sm:grid-cols-3 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                  <div key={index} className="grid grid-cols-12 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
                     {/* Nombre */}
-                    <div className="flex flex-col justify-center">
+                    <div className="col-span-4 flex flex-col justify-center">
                       <p className="font-medium text-gray-800 dark:text-gray-100">{quote.name}</p>
                       <p className="text-xs text-gray-500 dark:text-gray-400">
                         {['USDT', 'USDC'].includes(quote.name) ? 'Stablecoin' : 'Cryptocurrency'}
                       </p>
                     </div>
                     {/* Precio */}
-                    <div className="flex items-center">
+                    <div className="col-span-5 flex items-center justify-end text-right">
                       <p className="font-medium text-gray-800 dark:text-gray-100">
-                        {quote.name === 'USDT' || quote.name === 'USDC' ? formatUSD(quote.price) : formatARS(quote.price)}
+                        {['BTC', 'ETH'].includes(quote.name) ? formatUSD(quote.price) : formatARS(quote.price)}
                       </p>
                     </div>
                     {/* Variación */}
-                    <div className="flex items-center sm:justify-end">
+                    <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
                       <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
                       </span>

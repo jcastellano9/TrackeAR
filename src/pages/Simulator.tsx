@@ -55,7 +55,7 @@ const Simulator: React.FC = () => {
   interface InstallmentResult {
     totalFinanced: number;
     cft: number;
-    suggestion: 'Sí' | 'No';
+    suggestion: 'Cuotas' | 'Contado';
     adjustedInstallments: number[];
     inflationRate: number;
     fciProjection: number;
@@ -120,17 +120,20 @@ const Simulator: React.FC = () => {
 
     fetchRates();
 
-    // Fetch inflación mensual promedio últimos 12 meses
+    // Fetch inflación esperada oficial del BCRA
     const fetchInflation = async () => {
       try {
-        const inflationRes = await axios.get('https://api.argentinadatos.com/v1/inflacion/mensual');
-        if (Array.isArray(inflationRes.data)) {
-          const last12 = inflationRes.data.slice(-12);
-          const avg = last12.reduce((acc, curr) => acc + parseFloat(curr.valor), 0) / last12.length;
-          setMonthlyInflation(parseFloat(avg.toFixed(2)));
+        const res = await axios.get('https://api.estadisticasbcra.com/inflacion_esperada_oficial', {
+          headers: {
+            Authorization: 'BEARER eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzkxNDcxMjcsInR5cGUiOiJleHRlcm5hbCIsInVzZXIiOiJqb2Fjb2Nhc3RlMDBAZ21haWwuY29tIn0.cXS3YSQ44dd3295OE1IpXtrQaWB-eHcjlzPu_dfHrta0Ah1oYU6KHOcb3A-Jq-R_UVvA8axWDXSOkDaZI-UH-g'
+          }
+        });
+        if (Array.isArray(res.data)) {
+          const latest = res.data[res.data.length - 1];
+          setMonthlyInflation(parseFloat(latest.v.toFixed(2)));
         }
       } catch (e) {
-        console.error('Error al obtener inflación:', e);
+        console.error('Error al obtener inflación esperada oficial:', e);
       }
     };
     fetchInflation();
@@ -203,12 +206,16 @@ const Simulator: React.FC = () => {
     const totalFinanced = totalInstallment;
     const installment = totalInstallment / count;
     // Inflación estimada
-    const inflationRate = monthlyInflation ?? 3;
+    if (monthlyInflation === null || isNaN(monthlyInflation)) {
+      setError('No se pudo obtener la inflación esperada del BCRA. Intentá más tarde.');
+      return;
+    }
+    const inflationRate = monthlyInflation;
     const inflationFactor = (1 + inflationRate / 100);
     const adjustedInstallments: number[] = [];
     let totalAdjusted = 0;
     for (let i = 0; i < count; i++) {
-      const adjusted = installment / Math.pow(inflationFactor, i);
+      const adjusted = installment / Math.pow(1 + inflationRate / 100, i + 1);
       adjustedInstallments.push(adjusted);
       totalAdjusted += adjusted;
     }
@@ -226,10 +233,15 @@ const Simulator: React.FC = () => {
     const pfProjection = cash * Math.pow(1 + avgBankRate / 100, count / 12);
 
     // CFT corregido (anualizado)
-    // Nuevo cálculo usando tasa efectiva mensual
-    const monthlyRate = totalFinanced / cash;
-    const cft = ((monthlyRate - 1) / count) * 12 * 100;
-    const suggestion = totalAdjusted < cash ? 'Sí' : 'No';
+    // Nuevo cálculo usando tasa efectiva anual realista
+    // Cálculo corregido: tasa mensual = (cuota / cuota ideal proporcional al contado) - 1
+    const monthlyRate = Math.pow(totalFinanced / cash, 1 / count) - 1;
+    if (monthlyRate <= -1) {
+      setError('Los datos ingresados generan un CFT inválido. Verificá los montos.');
+      return;
+    }
+    const cft = (Math.pow(1 + monthlyRate, 12) - 1) * 100;
+    const suggestion = totalAdjusted < cash * 1.05 ? 'Cuotas' : 'Contado';
 
     setInstallmentResult({
       totalFinanced,
@@ -263,6 +275,15 @@ const Simulator: React.FC = () => {
             setSimulationType('fixed');
             setSelectedEntity('');
             setSelectedCrypto('');
+            setAmount('');
+            setTerm('30');
+            setRate('');
+            setResult(null);
+            setInstallmentResult(null);
+            setCashPrice('');
+            setInstallmentAmount('');
+            setInstallmentCount('');
+            setError(null);
           }}
           className={`p-4 rounded-xl border transition-all flex items-center justify-center ${
             simulationType === 'fixed'
@@ -289,6 +310,15 @@ const Simulator: React.FC = () => {
             setSimulationType('wallet');
             setSelectedEntity('');
             setSelectedCrypto('');
+            setAmount('');
+            setTerm('30');
+            setRate('');
+            setResult(null);
+            setInstallmentResult(null);
+            setCashPrice('');
+            setInstallmentAmount('');
+            setInstallmentCount('');
+            setError(null);
           }}
           className={`p-4 rounded-xl border transition-all flex items-center justify-center ${
             simulationType === 'wallet'
@@ -315,19 +345,28 @@ const Simulator: React.FC = () => {
             setSimulationType('crypto');
             setSelectedEntity('');
             setSelectedCrypto('');
+            setAmount('');
+            setTerm('30');
+            setRate('');
+            setResult(null);
+            setInstallmentResult(null);
+            setCashPrice('');
+            setInstallmentAmount('');
+            setInstallmentCount('');
+            setError(null);
           }}
           className={`p-4 rounded-xl border transition-all flex items-center justify-center ${
             simulationType === 'crypto'
-              ? 'bg-green-50 border-green-200 shadow-sm'
-              : 'bg-white border-gray-200 hover:border-green-200'
+              ? 'bg-orange-50 border-orange-200 shadow-sm'
+              : 'bg-white border-gray-200 hover:border-orange-200'
           }`}
         >
           <div className="flex items-center justify-center space-x-2">
             <Bitcoin size={24} className={`${
-              simulationType === 'crypto' ? 'text-green-600' : 'text-gray-400'
+              simulationType === 'crypto' ? 'text-orange-600' : 'text-gray-400'
             }`} />
             <h3 className={`font-medium ${
-              simulationType === 'crypto' ? 'text-green-600' : 'text-gray-700'
+              simulationType === 'crypto' ? 'text-orange-600' : 'text-gray-700'
             }`}>
               Cripto
             </h3>
@@ -341,20 +380,25 @@ const Simulator: React.FC = () => {
             setSimulationType('installments');
             setSelectedEntity('');
             setSelectedCrypto('');
+            setAmount('');
+            setTerm('30');
+            setRate('');
+            setResult(null);
+            setInstallmentResult(null);
+            setCashPrice('');
+            setInstallmentAmount('');
+            setInstallmentCount('');
+            setError(null);
           }}
           className={`p-4 rounded-xl border transition-all flex items-center justify-center ${
             simulationType === 'installments'
-              ? 'bg-orange-50 border-orange-200 shadow-sm'
-              : 'bg-white border-gray-200 hover:border-orange-200'
+              ? 'bg-yellow-50 border-yellow-200 shadow-sm'
+              : 'bg-white border-gray-200 hover:border-yellow-200'
           }`}
         >
           <div className="flex items-center justify-center space-x-2">
-            <Calculator size={24} className={`${
-              simulationType === 'installments' ? 'text-orange-600' : 'text-gray-400'
-            }`} />
-            <h3 className={`font-medium ${
-              simulationType === 'installments' ? 'text-orange-600' : 'text-gray-700'
-            }`}>
+            <Calculator size={24} className={`${simulationType === 'installments' ? 'text-yellow-600' : 'text-gray-400'}`} />
+            <h3 className={`font-medium ${simulationType === 'installments' ? 'text-yellow-600' : 'text-gray-700'}`}>
               Cuotas vs Contado
             </h3>
           </div>
@@ -371,8 +415,8 @@ const Simulator: React.FC = () => {
         {/* Bloque para cuotas vs contado */}
         {simulationType === 'installments' ? (
           <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
-              <div className="space-y-4">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
+              <div className="space-y-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-md">
                 <div>
                   <label htmlFor="cashPrice" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     Precio de contado
@@ -382,7 +426,7 @@ const Simulator: React.FC = () => {
                     id="cashPrice"
                     value={cashPrice}
                     onChange={(e) => setCashPrice(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     placeholder="Ej: 100000"
                   />
                 </div>
@@ -395,8 +439,8 @@ const Simulator: React.FC = () => {
                     id="installmentAmount"
                     value={installmentAmount}
                     onChange={(e) => setInstallmentAmount(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                    placeholder="Ej: 10800"
+                    className="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    placeholder="Ej: 120000"
                   />
                 </div>
                 <div>
@@ -407,7 +451,7 @@ const Simulator: React.FC = () => {
                     id="installmentCount"
                     value={installmentCount}
                     onChange={(e) => setInstallmentCount(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                   >
                     <option value="" disabled>Seleccioná cantidad</option>
                     {[1, 2, 3, 4, 6, 9, 10, 12, 18, 24, 30, 32, 36].map((n) => (
@@ -419,37 +463,52 @@ const Simulator: React.FC = () => {
                 <div>
                   <label htmlFor="inflationRate" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                     Inflación mensual estimada
-                    <span
-                      title="Promedio mensual de inflación basado en los últimos 12 meses. Podés modificarlo si tenés una proyección distinta."
-                      className="ml-1 cursor-help text-blue-500"
-                    >
-                      ℹ️
-                    </span>
                     {monthlyInflation !== null && !isNaN(monthlyInflation) && (
-                    <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
-                        (~{Math.floor((Math.pow(1 + (monthlyInflation / 100), 12) - 1) * 100)}% anual)
+                      <span className="text-sm text-gray-500 dark:text-gray-400 ml-2">
+                        (~{((Math.pow(1 + (monthlyInflation / 100), 12) - 1) * 100).toFixed(2)}% anual)
                       </span>
                     )}
                   </label>
                   <input
                     type="number"
                     id="inflationRate"
-                    value={monthlyInflation ?? ''}
+                    value={monthlyInflation !== null ? monthlyInflation.toString() : ''}
                     onChange={(e) => setMonthlyInflation(parseFloat(e.target.value))}
-                    className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                    className="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
                     step="0.01"
                     placeholder="Ej: 2.8"
                   />
                 </div>
                 <button
                   onClick={calculateInstallmentComparison}
-                  className="w-full py-2.5 px-4 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors flex items-center justify-center"
+                  className="w-full py-2.5 px-5 text-base font-semibold bg-yellow-500 text-white rounded-lg hover:bg-yellow-600 transition-colors flex items-center justify-center"
                 >
                   <Calculator size={18} className="mr-2" />
                   Comparar
                 </button>
+                {installmentResult && (
+                  <div className={`mt-6 p-4 rounded-lg text-sm text-left font-medium ${
+                    installmentResult.suggestion === 'Cuotas'
+                      ? 'bg-green-100 text-green-700 border border-green-300 dark:bg-green-900/20 dark:text-green-300 dark:border-green-600'
+                      : 'bg-red-100 text-red-700 border border-red-300 dark:bg-red-900/20 dark:text-red-300 dark:border-red-600'
+                  }`}>
+                    <p className="font-semibold mb-1">
+                      Recomendación: {installmentResult.suggestion === 'Cuotas' ? '💳 Cuotas' : '💵 Contado'}
+                    </p>
+                    <p className="text-sm">
+                      {installmentResult.suggestion === 'Cuotas'
+                        ? 'La suma de las cuotas ajustadas por inflación es menor al valor de contado.'
+                        : 'El valor actualizado de las cuotas es mayor al precio de contado considerando la inflación estimada.'}
+                    </p>
+                    {monthlyInflation !== null && (
+                      <p className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                        Inflación mensual esperada según BCRA: {monthlyInflation.toFixed(2)}% (~{((Math.pow(1 + (monthlyInflation / 100), 12) - 1) * 100).toFixed(2)}% anual)
+                      </p>
+                    )}
+                  </div>
+                )}
               </div>
-              <div className="space-y-4">
+              <div className="space-y-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-md h-full">
                 {error && (
                   <div className="p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg flex items-center text-red-700 dark:text-red-300">
                     <AlertCircle size={18} className="mr-2 flex-shrink-0" />
@@ -458,36 +517,30 @@ const Simulator: React.FC = () => {
                 )}
                 {installmentResult && (
                   <>
-                    <div className="p-4 bg-orange-50 dark:bg-orange-900 border border-orange-200 dark:border-orange-700 rounded-xl shadow-sm space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-300">Total financiado:</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-100">
+                    <div className="p-4 bg-yellow-50 dark:bg-yellow-900/30 border border-yellow-200 dark:border-yellow-600 rounded-xl shadow-sm space-y-4">
+                      <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 uppercase tracking-wide mb-1">
+                        Análisis de cuotas
+                      </p>
+                      <div className="flex justify-between items-center border-b border-yellow-100 dark:border-yellow-600 pb-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-300">Total financiado:</span>
+                        <span className="font-semibold text-yellow-800 dark:text-yellow-400 text-sm">
                           {formatCurrency(installmentResult.totalFinanced)}
                         </span>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-300">
-                          Costo financiero total (CFT)
-                          <span
-                            title="El CFT refleja el encarecimiento total de las cuotas en base al precio de contado, anualizado para comparar con otras tasas."
-                            className="ml-1 cursor-help text-blue-500"
-                          >
-                            ℹ️
-                          </span>
+                      <div className="flex justify-between items-center border-b border-yellow-100 dark:border-yellow-600 pb-2">
+                        <span className="text-sm text-gray-600 dark:text-gray-300">
+                          Costo Financiero Total (CFT anual efectivo)
                         </span>
-                        <span className="font-medium text-orange-600">
+                        <span className="font-semibold text-yellow-600 text-sm">
                           {installmentResult.cft.toFixed(2)}%
                         </span>
                       </div>
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        El CFT anual efectivo refleja el costo total del financiamiento. Se calcula como la tasa anual compuesta que iguala el valor de las cuotas al precio contado. Si da negativo o 0%, puede deberse a montos inconsistentes.                      </div>
+                      {/* "Conviene:" section removed as per instructions */}
                       <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-300">¿Conviene en cuotas?</span>
-                        <span className={`font-semibold ${installmentResult.suggestion === 'Sí' ? 'text-green-600' : 'text-red-600'}`}>
-                          {installmentResult.suggestion}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-300">Inflación estimada mensual:</span>
-                        <span className="font-medium text-orange-700">
+                        <span className="text-sm text-gray-600 dark:text-gray-300">Inflación mensual estimada:</span>
+                        <span className="font-medium text-yellow-700 text-sm">
                           {installmentResult.inflationRate.toFixed(2)}%
                         </span>
                       </div>
@@ -510,11 +563,21 @@ const Simulator: React.FC = () => {
                         <div className="p-4 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-xl shadow-sm">
                           <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">FCI (billetera promedio):</p>
                           <p className="text-blue-600 font-bold text-lg">{formatCurrency(installmentResult.fciProjection)}</p>
+                          <p className="text-xs text-blue-600 mt-1">TNA estimada: {walletRates.length
+                            ? (walletRates.reduce((sum, r) => sum + r.rate, 0) / walletRates.length).toFixed(2)
+                            : '30.00'}%</p>
                         </div>
                         <div className="p-4 bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-green-700 rounded-xl shadow-sm">
                           <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">Plazo Fijo promedio:</p>
                           <p className="text-green-600 font-bold text-lg">{formatCurrency(installmentResult.pfProjection)}</p>
+                          <p className="text-xs text-green-600 mt-1">TNA estimada: {bankRates.length
+                            ? (bankRates.reduce((sum, r) => sum + r.rate, 0) / bankRates.length).toFixed(2)
+                            : '35.00'}%</p>
                         </div>
+                      </div>
+                      <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                        <p><strong>¿Qué es FCI?</strong> Fondo Común de Inversión, como las cuentas remuneradas (ej: MercadoPago), donde el dinero genera intereses diarios y se puede retirar en cualquier momento.</p>
+                        <p className="mt-2"><strong>¿Qué es un Plazo Fijo?</strong> Es una inversión bancaria en la que el dinero queda inmovilizado por un período (ej: 30 días), y se cobra el interés al final del plazo.</p>
                       </div>
                   </>
                 )}
@@ -522,21 +585,37 @@ const Simulator: React.FC = () => {
             </div>
           </>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start self-start">
             {/* Input Fields */}
-            <div className="space-y-4">
+            <div className="space-y-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-md">
               <div>
                 <label htmlFor="amount" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  Monto a invertir
+                  {simulationType === 'crypto'
+                    ? 'Cantidad de activos a invertir'
+                    : 'Monto a invertir'}
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
+                  {simulationType !== 'crypto' ? (
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500 dark:text-gray-400">$</span>
+                  ) : selectedCrypto ? (
+                    <>
+                      <img
+                        src={cryptoRates.find(r => r.entity.startsWith(selectedCrypto))?.logo}
+                        alt={selectedCrypto}
+                        className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
+                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{selectedCrypto}</span>
+                    </>
+                  ) : (
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">{selectedCrypto || 'Ξ'}</span>
+                  )}
                   <input
                     type="number"
                     id="amount"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    className="w-full pl-8 pr-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className={`w-full ${simulationType === 'crypto' ? 'pl-20' : 'pl-8'} pr-3 py-2 text-base border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500`}
                     placeholder="0"
                   />
                 </div>
@@ -545,295 +624,320 @@ const Simulator: React.FC = () => {
                 <label htmlFor="term" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
                   Plazo (días)
                 </label>
+                <div className="grid grid-cols-4 gap-2 mb-2">
+                  {[30, 90, 180, 365].map((d) => (
+                    <button
+                      key={d}
+                      type="button"
+                      onClick={() => setTerm(d.toString())}
+                    className="px-4 py-2 text-base rounded-full border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      {d === 365 ? '1 año' : `${d} días`}
+                    </button>
+                  ))}
+                </div>
                 <input
                   type="number"
                   id="term"
                   value={term}
                   onChange={(e) => setTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   placeholder="30"
                 />
               </div>
-              <div>
-                <label htmlFor="rate" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
-                  Tasa Nominal Anual (%)
-                </label>
-                <input
-                  type="number"
-                  id="rate"
-                  value={rate}
-                  onChange={(e) => setRate(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="0.00"
-                />
-              </div>
+              {simulationType !== 'crypto' && (
+                <div>
+                  <label htmlFor="rate" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
+                    Tasa Nominal Anual (%)
+                  </label>
+                  <input
+                    type="number"
+                    id="rate"
+                    value={rate}
+                    onChange={(e) => setRate(e.target.value)}
+                    className="w-full px-4 py-2 text-base border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="0.00"
+                  />
+                </div>
+              )}
               <button
                 onClick={calculateResults}
-                className="w-full py-2.5 px-4 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center justify-center"
+                className={`w-full py-2.5 px-5 text-base font-semibold ${
+                  simulationType === 'crypto'
+                    ? 'bg-orange-600 hover:bg-orange-700'
+                    : simulationType === 'wallet'
+                    ? 'bg-purple-600 hover:bg-purple-700'
+                    : simulationType === 'installments'
+                    ? 'bg-red-600 hover:bg-red-700'
+                    : 'bg-blue-600 hover:bg-blue-700'
+                } text-white rounded-lg transition-colors flex items-center justify-center`}
               >
                 <Calculator size={18} className="mr-2" />
                 Calcular
               </button>
+              {simulationType === 'crypto' && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-xl shadow-sm">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-200">
+                    Este cálculo no contempla variaciones del mercado. Los rendimientos en cripto pueden variar significativamente.
+                  </p>
+                </div>
+              )}
             </div>
             {/* Results */}
-            <div className="space-y-4">
+            <div className={`space-y-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-md transition-all duration-300 ${
+              result ? 'h-full' : ''
+            }`}>
               {error && (
                 <div className="p-3 bg-red-50 dark:bg-red-900 border border-red-200 dark:border-red-700 rounded-lg flex items-center text-red-700 dark:text-red-300">
                   <AlertCircle size={18} className="mr-2 flex-shrink-0" />
                   <span>{error}</span>
                 </div>
               )}
-              {result && (
-                <div className="space-y-4">
-                  <div className="p-4 bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-green-700 rounded-xl shadow-sm">
-                    <div className="flex items-center mb-2">
-                      <Check size={18} className="text-green-600 mr-2" />
-                      <h4 className="font-medium text-green-800 dark:text-green-300">Resultado de la simulación</h4>
-                    </div>
-                    <div className="space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-300">Monto final:</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-100">
-                          {formatCurrency(result.finalAmount)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-300">Interés ganado:</span>
-                        <span className="font-medium text-green-600">
-                          {formatCurrency(result.interest)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span className="text-gray-600 dark:text-gray-300">TEA:</span>
-                        <span className="font-medium text-blue-600">
-                          {result.effectiveRate.toFixed(2)}%
-                        </span>
-                      </div>
-                    </div>
+              {/* Available Rates */}
+              {simulationType !== 'crypto' && (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-700 dark:text-gray-200 mb-1">Tasas disponibles</h4>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {simulationType === 'fixed' && (
+                      <>
+                        <label htmlFor="bankRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Seleccionar banco</label>
+                        <select
+                          id="bankRateSelect"
+                          value={selectedEntity}
+                          onChange={(e) => {
+                            const selected = bankRates.find(rate => rate.entity === e.target.value);
+                            if (selected) handleEntitySelect(selected.entity, selected.rate);
+                          }}
+                          className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                        >
+                          <option value="" disabled>Elegí un banco</option>
+                          {bankRates.map((rate, index) => (
+                            <option key={index} value={rate.entity}>
+                              {rate.entity} ({rate.rate.toFixed(2)}% TNA)
+                            </option>
+                          ))}
+                        </select>
+                        {selectedEntity && (
+                          <div className="flex items-center mt-3 space-x-2">
+                            {(() => {
+                              const r = (simulationType === 'fixed'
+                                ? bankRates
+                                : simulationType === 'wallet'
+                                ? walletRates
+                                : cryptoRates
+                              ).find(r => r.entity === selectedEntity);
+                              return (
+                                <img
+                                  src={
+                                    (simulationType === 'fixed'
+                                      ? bankRates
+                                      : simulationType === 'wallet'
+                                      ? walletRates
+                                      : cryptoRates
+                                    ).find(r => r.entity === selectedEntity)?.logo || undefined
+                                  }
+                                  alt={selectedEntity}
+                                  className="w-6 h-6 object-contain"
+                                  style={{ display: r?.logo ? 'block' : 'none' }}
+                                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                                />
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {simulationType === 'wallet' && (
+                      <>
+                        <label htmlFor="walletRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Seleccionar billetera virtual</label>
+                        <select
+                          id="walletRateSelect"
+                          value={selectedEntity}
+                          onChange={(e) => {
+                            const selected = walletRates.find(rate => rate.entity === e.target.value);
+                            if (selected) handleEntitySelect(selected.entity, selected.rate);
+                          }}
+                          className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
+                        >
+                          <option value="" disabled>Elegí una billetera</option>
+                          {walletRates.map((rate, index) => (
+                            <option key={index} value={rate.entity}>
+                              {rate.entity} ({rate.rate.toFixed(2)}% TNA)
+                            </option>
+                          ))}
+                        </select>
+                        {selectedEntity && (
+                          <div className="flex items-center mt-3 space-x-2">
+                            {(() => {
+                              const r = (simulationType === 'fixed'
+                                ? bankRates
+                                : simulationType === 'wallet'
+                                ? walletRates
+                                : cryptoRates
+                              ).find(r => r.entity === selectedEntity);
+                              return (
+                                <img
+                                  src={
+                                    (simulationType === 'fixed'
+                                      ? bankRates
+                                      : simulationType === 'wallet'
+                                      ? walletRates
+                                      : cryptoRates
+                                    ).find(r => r.entity === selectedEntity)?.logo || undefined
+                                  }
+                                  alt={selectedEntity}
+                                  className="w-6 h-6 object-contain"
+                                  style={{ display: r?.logo ? 'block' : 'none' }}
+                                  onError={(e) => (e.currentTarget.style.display = 'none')}
+                                />
+                              );
+                            })()}
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
-                  {simulationType === 'crypto' && (
-                    <div className="p-3 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-xl shadow-sm">
-                      <p className="text-sm text-yellow-700 dark:text-yellow-200">
-                        Este cálculo no contempla variaciones del mercado. Los rendimientos en cripto pueden variar significativamente.
-                      </p>
+                </div>
+              )}
+              {/* Crypto selectors moved to right column */}
+              {simulationType === 'crypto' && (
+                <div className="space-y-3">
+                  <h4 className="font-medium text-gray-700 dark:text-gray-200 mb-1">Tasas disponibles</h4>
+                  <label htmlFor="cryptoSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                    Seleccionar criptomoneda
+                  </label>
+                  <select
+                    id="cryptoSelect"
+                    value={selectedCrypto}
+                    onChange={(e) => {
+                      setSelectedCrypto(e.target.value);
+                      const filtered = cryptoRates.filter(rate => rate.entity.startsWith(e.target.value));
+                      setAvailableCryptoPlatforms(filtered);
+                      setSelectedEntity('');
+                      setResult(null);
+                      setError(null);
+                    }}
+                    className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 mb-1"
+                  >
+                    <option value="" disabled>Elegí una cripto</option>
+                    {[...new Set(cryptoRates.map(rate => rate.entity.split(' ')[0]))]
+                      .sort()
+                      .map((crypto, index) => (
+                        <option key={index} value={crypto}>
+                          {crypto}
+                        </option>
+                    ))}
+                  </select>
+                  {selectedCrypto && (
+                    <div className="flex items-center space-x-2">
+                      {(() => {
+                        const r = cryptoRates.find(r => r.entity.startsWith(selectedCrypto));
+                        return (
+                          <img
+                            src={
+                              cryptoRates.find(r => r.entity.startsWith(selectedCrypto))?.logo || undefined
+                            }
+                            alt={selectedCrypto}
+                            className="w-6 h-6 object-contain"
+                            style={{ display: r?.logo ? 'block' : 'none' }}
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
+                        );
+                      })()}
                     </div>
+                  )}
+                  {selectedCrypto && (
+                    <>
+                      <label htmlFor="platformSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
+                        Seleccionar plataforma
+                      </label>
+                      <select
+                        id="platformSelect"
+                        value={selectedEntity}
+                        onChange={(e) => {
+                          const selected = availableCryptoPlatforms.find(rate => rate.entity === e.target.value);
+                          if (selected) handleEntitySelect(selected.entity, selected.rate);
+                        }}
+                        className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors mb-1"
+                      >
+                        <option value="" disabled>Elegí una plataforma</option>
+                        {availableCryptoPlatforms.map((rate, index) => (
+                          <option key={index} value={rate.entity}>
+                            {rate.entity.split('(')[1]?.replace(')', '')} ({rate.rate.toFixed(2)}% APY)
+                          </option>
+                        ))}
+                      </select>
+                      {selectedEntity && (
+                        <div className="flex items-center space-x-2">
+                          {(() => {
+                            const r = cryptoRates.find(r => r.entity === selectedEntity);
+                            return (
+                              <img
+                                src={
+                                  cryptoRates.find(r => r.entity === selectedEntity)?.logo || undefined
+                                }
+                                alt={selectedEntity}
+                                className="w-6 h-6 object-contain"
+                                style={{ display: r?.logo ? 'block' : 'none' }}
+                                onError={(e) => (e.currentTarget.style.display = 'none')}
+                              />
+                            );
+                          })()}
+                          {selectedEntity && !selectedEntity.includes('(') && (
+                            <span className="text-sm text-gray-700 dark:text-gray-100 truncate">{selectedEntity}</span>
+                          )}
+                        </div>
+                      )}
+                    </>
                   )}
                 </div>
               )}
-              {/* Available Rates */}
-              <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
-                <h4 className="font-medium text-gray-700 dark:text-gray-200 mb-3">Tasas disponibles</h4>
-                <div className="space-y-2 max-h-60 overflow-y-auto">
-                  {simulationType === 'fixed' && (
-                    <>
-                      <label htmlFor="bankRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Seleccionar banco</label>
-                      <select
-                        id="bankRateSelect"
-                        value={selectedEntity}
-                        onChange={(e) => {
-                          const selected = bankRates.find(rate => rate.entity === e.target.value);
-                          if (selected) handleEntitySelect(selected.entity, selected.rate);
-                        }}
-                        className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      >
-                        <option value="" disabled>Elegí un banco</option>
-                        {bankRates.map((rate, index) => (
-                          <option key={index} value={rate.entity}>
-                            {rate.entity} ({rate.rate.toFixed(2)}% TNA)
-                          </option>
-                        ))}
-                      </select>
-                      {selectedEntity && (
-                        <div className="flex items-center mt-3 space-x-2">
-                          {(() => {
-                            const r = (simulationType === 'fixed'
-                              ? bankRates
-                              : simulationType === 'wallet'
-                              ? walletRates
-                              : cryptoRates
-                            ).find(r => r.entity === selectedEntity);
-                            return (
-                              <img
-                                src={
-                                  (simulationType === 'fixed'
-                                    ? bankRates
-                                    : simulationType === 'wallet'
-                                    ? walletRates
-                                    : cryptoRates
-                                  ).find(r => r.entity === selectedEntity)?.logo || undefined
-                                }
-                                alt={selectedEntity}
-                                className="w-6 h-6 object-contain"
-                                style={{ display: r?.logo ? 'block' : 'none' }}
-                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                              />
-                            );
-                          })()}
-                          <span className="text-sm text-gray-700 dark:text-gray-100 truncate">{selectedEntity}</span>
-                        </div>
+              {result && (
+                <div className="space-y-4 mt-6">
+                  <div className="mb-2 flex items-center">
+                    <Check size={18} className="text-green-600 mr-2" />
+                    <h4 className="text-green-700 dark:text-green-300 font-semibold text-base">Resultado de la simulación</h4>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-3 text-center shadow-sm border border-gray-200 dark:border-gray-700">
+                      <p className="text-gray-600 dark:text-gray-300 mb-1">
+                        {simulationType === 'crypto'
+                          ? 'Cantidad final de activos'
+                          : 'Monto final'}
+                      </p>
+                      {simulationType === 'crypto' ? (
+                        <p className="text-lg font-bold text-gray-900 dark:text-gray-100">
+                          {result.finalAmount.toFixed(6)} {selectedCrypto}
+                        </p>
+                      ) : (
+                        <p className="text-lg font-bold text-gray-900 dark:text-gray-100">{formatCurrency(result.finalAmount)}</p>
                       )}
-                    </>
-                  )}
-                  {simulationType === 'wallet' && (
-                    <>
-                      <label htmlFor="walletRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Seleccionar billetera virtual</label>
-                      <select
-                        id="walletRateSelect"
-                        value={selectedEntity}
-                        onChange={(e) => {
-                          const selected = walletRates.find(rate => rate.entity === e.target.value);
-                          if (selected) handleEntitySelect(selected.entity, selected.rate);
-                        }}
-                        className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
-                      >
-                        <option value="" disabled>Elegí una billetera</option>
-                        {walletRates.map((rate, index) => (
-                          <option key={index} value={rate.entity}>
-                            {rate.entity} ({rate.rate.toFixed(2)}% TNA)
-                          </option>
-                        ))}
-                      </select>
-                      {selectedEntity && (
-                        <div className="flex items-center mt-3 space-x-2">
-                          {(() => {
-                            const r = (simulationType === 'fixed'
-                              ? bankRates
-                              : simulationType === 'wallet'
-                              ? walletRates
-                              : cryptoRates
-                            ).find(r => r.entity === selectedEntity);
-                            return (
-                              <img
-                                src={
-                                  (simulationType === 'fixed'
-                                    ? bankRates
-                                    : simulationType === 'wallet'
-                                    ? walletRates
-                                    : cryptoRates
-                                  ).find(r => r.entity === selectedEntity)?.logo || undefined
-                                }
-                                alt={selectedEntity}
-                                className="w-6 h-6 object-contain"
-                                style={{ display: r?.logo ? 'block' : 'none' }}
-                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                              />
-                            );
-                          })()}
-                          <span className="text-sm text-gray-700 dark:text-gray-100 truncate">{selectedEntity}</span>
-                        </div>
-                      )}
-                    </>
-                  )}
-                  {simulationType === 'crypto' && (
-                    <>
-                      <label htmlFor="cryptoSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                        Seleccionar criptomoneda
-                      </label>
-                      <select
-                        id="cryptoSelect"
-                        value={selectedCrypto}
-                        onChange={(e) => {
-                          setSelectedCrypto(e.target.value);
-                          const filtered = cryptoRates.filter(rate => rate.entity.startsWith(e.target.value));
-                          setAvailableCryptoPlatforms(filtered);
-                          setSelectedEntity('');
-                        }}
-                        className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-green-500 mb-4"
-                      >
-                        <option value="" disabled>Elegí una cripto</option>
-                        {[...new Set(cryptoRates.map(rate => rate.entity.split(' ')[0]))]
-                          .sort()
-                          .map((crypto, index) => (
-                            <option key={index} value={crypto}>
-                              {crypto}
-                            </option>
-                        ))}
-                      </select>
-                      {selectedCrypto && (
-                        <div className="flex items-center mt-3 space-x-2">
-                          {(() => {
-                            const r = (simulationType === 'crypto'
-                              ? cryptoRates
-                              : simulationType === 'wallet'
-                              ? walletRates
-                              : bankRates
-                            ).find(r => r.entity.startsWith(selectedCrypto));
-                            return (
-                              <img
-                                src={
-                                  (simulationType === 'crypto'
-                                    ? cryptoRates
-                                    : simulationType === 'wallet'
-                                    ? walletRates
-                                    : bankRates
-                                  ).find(r => r.entity.startsWith(selectedCrypto))?.logo || undefined
-                                }
-                                alt={selectedCrypto}
-                                className="w-6 h-6 object-contain"
-                                style={{ display: r?.logo ? 'block' : 'none' }}
-                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                              />
-                            );
-                          })()}
-                          <span className="text-sm text-gray-700 dark:text-gray-100 truncate">{selectedCrypto}</span>
-                        </div>
-                      )}
-                      {selectedCrypto && (
-                        <>
-                          <label htmlFor="platformSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
-                            Seleccionar plataforma
-                          </label>
-                          <select
-                            id="platformSelect"
-                            value={selectedEntity}
-                            onChange={(e) => {
-                              const selected = availableCryptoPlatforms.find(rate => rate.entity === e.target.value);
-                              if (selected) handleEntitySelect(selected.entity, selected.rate);
-                            }}
-                            className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors"
-                          >
-                            <option value="" disabled>Elegí una plataforma</option>
-                            {availableCryptoPlatforms.map((rate, index) => (
-                              <option key={index} value={rate.entity}>
-                                {rate.entity.split('(')[1]?.replace(')', '')} ({rate.rate.toFixed(2)}% APY)
-                              </option>
-                            ))}
-                          </select>
-                          {selectedEntity && (
-                            <div className="flex items-center mt-3 space-x-2">
-                              {(() => {
-                                const r = (simulationType === 'crypto'
-                                  ? cryptoRates
-                                  : simulationType === 'wallet'
-                                  ? walletRates
-                                  : bankRates
-                                ).find(r => r.entity === selectedEntity);
-                                return (
-                                  <img
-                                    src={
-                                      (simulationType === 'crypto'
-                                        ? cryptoRates
-                                        : simulationType === 'wallet'
-                                        ? walletRates
-                                        : bankRates
-                                      ).find(r => r.entity === selectedEntity)?.logo || undefined
-                                    }
-                                    alt={selectedEntity}
-                                    className="w-6 h-6 object-contain"
-                                    style={{ display: r?.logo ? 'block' : 'none' }}
-                                    onError={(e) => (e.currentTarget.style.display = 'none')}
-                                  />
-                                );
-                              })()}
-                              <span className="text-sm text-gray-700 dark:text-gray-100 truncate">{selectedEntity}</span>
-                            </div>
-                          )}
-                        </>
-                      )}
-                    </>
-                  )}
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-3 text-center shadow-sm border border-gray-200 dark:border-gray-700">
+                      <p className="text-gray-600 dark:text-gray-300 mb-1">Interés ganado</p>
+                      <p className="text-lg font-bold text-green-600">
+                        {simulationType === 'crypto'
+                          ? `${result.interest.toFixed(8)} ${selectedCrypto}`
+                          : formatCurrency(result.interest)}
+                      </p>
+                    </div>
+                    <div className="bg-white dark:bg-gray-900 rounded-lg p-3 text-center shadow-sm border border-gray-200 dark:border-gray-700">
+                      <p className="text-gray-600 dark:text-gray-300 mb-1">TEA</p>
+                      <p className={`text-lg font-bold ${
+                        simulationType === 'crypto'
+                          ? 'text-orange-500'
+                          : simulationType === 'wallet'
+                          ? 'text-purple-600'
+                          : simulationType === 'installments'
+                          ? 'text-red-600'
+                          : 'text-blue-600'
+                      }`}>
+                        {result.effectiveRate.toFixed(2)}%
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
           </div>
         )}
