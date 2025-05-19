@@ -219,19 +219,19 @@ const Profile: React.FC = () => {
           <motion.div
             initial={{ scale: 0.95, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full"
+            className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 max-w-md w-full transition-colors duration-300"
           >
             <h3 id="change-password-title" className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Cambiar Contraseña</h3>
 
             {error && (
-              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 dark:bg-red-900 dark:border-red-600 dark:text-red-200">
                 <AlertCircle size={18} className="mr-2 flex-shrink-0" />
                 <span>{error}</span>
               </div>
             )}
 
             {success && (
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700">
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700 dark:bg-green-900 dark:border-green-600 dark:text-green-200">
                 <Check size={18} className="mr-2 flex-shrink-0" />
                 <span>{success}</span>
               </div>
@@ -249,7 +249,7 @@ const Profile: React.FC = () => {
                     id="currentPassword"
                     value={currentPassword}
                     onChange={(e) => { setCurrentPassword(e.target.value); if (error) setError(null); }}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${error ? 'border-red-500' : 'border-gray-300'} pr-12`}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ease-in-out ${error ? 'border-red-500' : 'border-gray-300'} pr-12`}
                   />
                   <button
                     type="button"
@@ -275,7 +275,7 @@ const Profile: React.FC = () => {
                       validatePassword(e.target.value);
                       if (error) setError(null);
                     }}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${error ? 'border-red-500' : 'border-gray-300'} pr-12`}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ease-in-out ${error ? 'border-red-500' : 'border-gray-300'} pr-12`}
                   />
                   <button
                     type="button"
@@ -297,19 +297,19 @@ const Profile: React.FC = () => {
                         <span className={`mr-1 ${passwordValidation.length ? 'text-green-500' : 'text-gray-400'}`}>
                           {passwordValidation.length ? <Check size={12} /> : '•'}
                         </span>
-                        <span className={passwordValidation.length ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-400'}>Mínimo 6 caracteres</span>
+                        <span className={passwordValidation.length ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}>Mínimo 6 caracteres</span>
                       </div>
                       <div className="flex items-center">
                         <span className={`mr-1 ${passwordValidation.uppercase ? 'text-green-500' : 'text-gray-400'}`}>
                           {passwordValidation.uppercase ? <Check size={12} /> : '•'}
                         </span>
-                        <span className={passwordValidation.uppercase ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-400'}>Al menos una mayúscula</span>
+                        <span className={passwordValidation.uppercase ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}>Al menos una mayúscula</span>
                       </div>
                       <div className="flex items-center">
                         <span className={`mr-1 ${passwordValidation.number ? 'text-green-500' : 'text-gray-400'}`}>
                           {passwordValidation.number ? <Check size={12} /> : '•'}
                         </span>
-                        <span className={passwordValidation.number ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-400'}>Al menos un número</span>
+                        <span className={passwordValidation.number ? 'text-gray-700 dark:text-gray-300' : 'text-gray-400 dark:text-gray-500'}>Al menos un número</span>
                       </div>
                     </div>
                   </div>
@@ -326,7 +326,7 @@ const Profile: React.FC = () => {
                     id="confirmPassword"
                     value={confirmPassword}
                     onChange={(e) => { setConfirmPassword(e.target.value); if (error) setError(null); }}
-                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${error ? 'border-red-500' : 'border-gray-300'} pr-12`}
+                    className={`w-full px-4 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all duration-200 ease-in-out ${error ? 'border-red-500' : 'border-gray-300'} pr-12`}
                   />
                   <button
                     type="button"
@@ -348,10 +348,12 @@ const Profile: React.FC = () => {
                 </button>
                 <button
                   type="submit"
-                  disabled={loadingChange}
-                  className={`px-4 py-2 rounded-lg transition-colors ${
-                    loadingChange ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
-                  } text-white flex items-center justify-center`}
+                  disabled={loadingChange || !passwordStrength || newPassword !== confirmPassword}
+                  className={`px-4 py-2 rounded-lg flex items-center justify-center transition-all duration-200 ease-in-out ${
+                    loadingChange || !passwordStrength || newPassword !== confirmPassword
+                      ? 'bg-gray-400 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700 transition-all duration-200 ease-in-out'
+                  } text-white`}
                 >
                   {loadingChange ? (
                     <span className="animate-spin h-5 w-5 border-t-2 border-white rounded-full" />

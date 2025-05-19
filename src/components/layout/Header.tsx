@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
-import { LayoutDashboard, Briefcase, BarChart, Calculator, User, Menu, X, Sun, Moon } from 'lucide-react';
+import { LayoutDashboard, Briefcase, BarChart, Calculator, User, Menu, X, Sun, Moon, LogOut } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 const Header: React.FC = () => {
@@ -39,8 +39,8 @@ const Header: React.FC = () => {
   };
 
   return (
-    <motion.header 
-      className={`sticky top-0 z-50 backdrop-blur-md transition-all duration-300 ${
+    <motion.header
+      className={`sticky top-0 z-50 backdrop-blur-md transition-all duration-300 transition-colors ${
         scrolled 
           ? 'bg-white/80 dark:bg-gray-900/80 shadow-lg' 
           : 'bg-transparent'
@@ -52,9 +52,11 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
-              TrackeAr
-            </h1>
+            <NavLink to="/" role="heading" aria-level="1">
+              <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
+                TrackeAr
+              </h1>
+            </NavLink>
           </div>
 
           {/* Desktop Navigation */}
@@ -63,7 +65,7 @@ const Header: React.FC = () => {
               <NavLink
                 key={item.path}
                 to={item.path}
-                className={({ isActive }) => 
+                className={({ isActive }) =>
                   `flex items-center px-3 py-2 rounded-md transition-all duration-200 ${
                     isActive 
                       ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-medium' 
@@ -84,8 +86,9 @@ const Header: React.FC = () => {
             </button>
             <button
               onClick={handleLogout}
-              className="ml-2 px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
+              className="ml-2 px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200 flex items-center"
             >
+              <LogOut size={16} className="mr-2" />
               Salir
             </button>
           </nav>
@@ -111,7 +114,7 @@ const Header: React.FC = () => {
 
       {/* Mobile Navigation */}
       {isMenuOpen && (
-        <motion.div 
+        <motion.div
           className="md:hidden bg-white dark:bg-gray-900 shadow-lg rounded-b-lg"
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: 'auto' }}
@@ -124,7 +127,7 @@ const Header: React.FC = () => {
                 key={item.path}
                 to={item.path}
                 onClick={() => setIsMenuOpen(false)}
-                className={({ isActive }) => 
+                className={({ isActive }) =>
                   `flex items-center px-3 py-2 rounded-md transition-all duration-200 ${
                     isActive 
                       ? 'bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-400 font-medium' 
@@ -137,9 +140,13 @@ const Header: React.FC = () => {
               </NavLink>
             ))}
             <button
-              onClick={handleLogout}
-              className="w-full mt-2 px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200"
+              onClick={() => {
+                setIsMenuOpen(false);
+                handleLogout();
+              }}
+              className="w-full mt-2 px-4 py-2 rounded-md bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors duration-200 flex items-center justify-center"
             >
+              <LogOut size={16} className="mr-2" />
               Salir
             </button>
           </div>

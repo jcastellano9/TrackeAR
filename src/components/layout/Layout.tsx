@@ -5,17 +5,17 @@ import { motion } from 'framer-motion';
 
 const Layout: React.FC = () => {
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 text-gray-900 dark:text-gray-100 transition-colors">
+    <motion.div
+      className="min-h-screen bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-950 text-gray-900 dark:text-gray-100 transition-colors"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
       <Header />
-      <motion.main 
-        className="container mx-auto px-4 py-6"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-      >
+      <main className="container mx-auto px-4 py-6">
         <Outlet />
-      </motion.main>
-    </div>
+      </main>
+    </motion.div>
   );
 };
 

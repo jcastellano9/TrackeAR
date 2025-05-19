@@ -61,7 +61,29 @@ const Dashboard: React.FC = () => {
   const [cryptoQuotes, setCryptoQuotes] = useState<CryptoQuote[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(true);
 
-  // Portfolio distribution data
+  // Estado para inflación mensual oficial (solo último valor y error)
+  const [lastInflation, setLastInflation] = useState<number | null>(null);
+  const [inflationError, setInflationError] = useState(false);
+  useEffect(() => {
+    const fetchInflationData = async () => {
+      try {
+        const res = await axios.get('https://api.estadisticasbcra.com/inflacion_mensual_oficial', {
+          headers: {
+            Authorization: 'BEARER eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzkxNTI4NjAsInR5cGUiOiJleHRlcm5hbCIsInVzZXIiOiJqb2Fjb2Nhc3RlMDBAZ21haWwuY29tIn0.-aP6YcNy4cwXRT0p5yFyKV9Vk0xpHY6te-inXECshrkL6lcbTITLt1ayyogDgkrLag3MZoDKqDHaTGp72djKyA'
+          }
+        });
+        if (res.data && res.data.length > 0) {
+          setLastInflation(res.data[res.data.length - 1].v);
+        } else {
+          setInflationError(true);
+        }
+      } catch (error) {
+        console.error('Error fetching inflation data:', error);
+        setInflationError(true);
+      }
+    };
+    fetchInflationData();
+  }, []);
   const [portfolioData, setPortfolioData] = useState({
     labels: ['Cripto', 'CEDEARs', 'Acciones'],
     datasets: [{
@@ -243,6 +265,18 @@ const Dashboard: React.FC = () => {
             axios.get('https://api.comparadolar.ar/quotes')
           ]);
 
+          // Normalizador de nombres para mejor match
+          const normalizeName = (name: string) =>
+            name.toLowerCase()
+              .replace('dólar', 'usd')
+              .replace('tarjeta', 'tarjeta')
+              .replace('blue', 'blue')
+              .replace('bolsa', 'bolsa')
+              .replace('contado con liquidación', 'contado con liquidación')
+              .replace('mayorista', 'mayorista')
+              .replace('cripto', 'cripto')
+              .trim();
+
           const getUSDOrder = (name: string) => {
             const priority = [
               'USD Tarjeta',
@@ -258,12 +292,14 @@ const Dashboard: React.FC = () => {
           };
 
           combinedQuotes = dolarApiRes.data.map((item: any) => {
-            const matched = comparaRes.data.find((d: any) => d.name === item.nombre);
+            const matched = comparaRes.data.find((d: any) =>
+              normalizeName(d.name) === normalizeName(item.nombre)
+            );
             return {
               name: item.nombre,
               buy: item.compra,
               sell: item.venta,
-              variation: matched?.variation ?? 0
+              variation: matched?.variation !== undefined ? matched.variation : null
             };
           });
 
@@ -637,14 +673,20 @@ const Dashboard: React.FC = () => {
                     </div>
                     {/* Variación */}
                     <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
-                      <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
-                      </span>
-                      {quote.variation >= 0 ? (
-                        <ArrowUpRight size={12} className="ml-1 text-green-600" />
+                      {quote.variation !== undefined && quote.variation !== null ? (
+                        <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
+                        </span>
                       ) : (
-                        <ArrowDownRight size={12} className="ml-1 text-red-600" />
+                        <span className="text-xs text-gray-400">–</span>
                       )}
+                      {quote.variation !== undefined && quote.variation !== null ? (
+                        quote.variation >= 0 ? (
+                          <ArrowUpRight size={12} className="ml-1 text-green-600" />
+                        ) : (
+                          <ArrowDownRight size={12} className="ml-1 text-red-600" />
+                        )
+                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -680,38 +722,58 @@ const Dashboard: React.FC = () => {
               <p className="text-gray-500 dark:text-gray-400">Cargando datos...</p>
             </div>
           ) : cryptoQuotes.length > 0 ? (
-            <div className="space-y-3">
-              {cryptoQuotes
-                .filter(quote => quote && typeof quote.price === 'number' && !isNaN(quote.price) && quote.price > 0)
-                .map((quote, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    {/* Nombre */}
-                    <div className="col-span-4 flex flex-col justify-center">
-                      <p className="font-medium text-gray-800 dark:text-gray-100">{quote.name}</p>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        {['USDT', 'USDC'].includes(quote.name) ? 'Stablecoin' : 'Cryptocurrency'}
-                      </p>
+            <>
+              <div className="space-y-3">
+                {cryptoQuotes
+                  .filter(quote => quote && typeof quote.price === 'number' && !isNaN(quote.price) && quote.price > 0)
+                  .map((quote, index) => (
+                    <div key={index} className="grid grid-cols-12 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      {/* Nombre */}
+                      <div className="col-span-4 flex flex-col justify-center">
+                        <p className="font-medium text-gray-800 dark:text-gray-100">{quote.name}</p>
+                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                          {['USDT', 'USDC'].includes(quote.name) ? 'Stablecoin' : 'Cryptocurrency'}
+                        </p>
+                      </div>
+                      {/* Precio */}
+                      <div className="col-span-5 flex items-center justify-end text-right">
+                        <p className="font-medium text-gray-800 dark:text-gray-100">
+                          {['BTC', 'ETH'].includes(quote.name) ? formatUSD(quote.price) : formatARS(quote.price)}
+                        </p>
+                      </div>
+                      {/* Variación */}
+                      <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
+                        <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
+                        </span>
+                        {quote.variation >= 0 ? (
+                          <ArrowUpRight size={12} className="ml-1 text-green-600" />
+                        ) : (
+                          <ArrowDownRight size={12} className="ml-1 text-red-600" />
+                        )}
+                      </div>
                     </div>
-                    {/* Precio */}
-                    <div className="col-span-5 flex items-center justify-end text-right">
-                      <p className="font-medium text-gray-800 dark:text-gray-100">
-                        {['BTC', 'ETH'].includes(quote.name) ? formatUSD(quote.price) : formatARS(quote.price)}
-                      </p>
-                    </div>
-                    {/* Variación */}
-                    <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
-                      <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
-                      </span>
-                      {quote.variation >= 0 ? (
-                        <ArrowUpRight size={12} className="ml-1 text-green-600" />
-                      ) : (
-                        <ArrowDownRight size={12} className="ml-1 text-red-600" />
-                      )}
-                    </div>
+                  ))}
+              </div>
+              {/* Inflación mensual oficial - tarjeta separada y visualmente destacada */}
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 mt-6 border-l-4 border-orange-400">
+                <div className="flex justify-between items-center">
+                  <div className="flex flex-col justify-center">
+                    <p className="text-base font-medium text-gray-800 dark:text-gray-100">Inflación mensual oficial</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Fuente: BCRA</p>
                   </div>
-                ))}
-            </div>
+                  <div className="text-right">
+                    {inflationError ? (
+                        <p className="text-base text-red-500">Datos no disponibles</p>
+                    ) : lastInflation !== null ? (
+                        <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{lastInflation.toFixed(2)}%</p>
+                    ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">Cargando...</p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
           ) : (
             <div className="text-center py-10">
               <p className="text-gray-500 dark:text-gray-400">No hay datos disponibles</p>
