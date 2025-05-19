@@ -92,6 +92,8 @@ const Analysis: React.FC = () => {
 
   // Dollar visual filter logic: selectedCurrency and filteredDollarQuotes
   const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'Bancos' | 'Alternativos' | 'Billeteras Virtuales'>('USD');
+  // Ordenamiento global de cotizaciones
+  const [sortOption, setSortOption] = useState<'alphabetical' | 'buyAsc' | 'buyDesc' | 'sellAsc' | 'sellDesc'>('alphabetical');
   // Cripto visual filter logic: selectedToken
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   // PIX visual filter logic: selectedPixSymbol
@@ -306,36 +308,60 @@ const Analysis: React.FC = () => {
   useEffect(() => {
     const fetchPixQuotes = async () => {
       try {
-        const response = await axios.get('https://pix.ferminrp.com/quotes');
+        const response = await axios.get("http://localhost:5174/api/pix-quotes");
 
         if (response?.data && typeof response.data === 'object') {
-          const formattedQuotes: Quote[] = [];
+          const formattedQuotes: (Quote & { currencyType: string })[] = [];
 
           Object.entries(response.data).forEach(([provider, info]: [string, any]) => {
             if (Array.isArray(info.quotes)) {
               info.quotes.forEach((quote: any) => {
-                const name = `${provider} (${quote.symbol})`.replace(/-/g, ' ').replace(/_/g, ' ').toUpperCase();
+                const currencyLabel =
+                  quote.symbol === 'BRLUSD' || quote.symbol === 'BRLUSDT'
+                    ? 'USD'
+                    : quote.symbol === 'BRLARS'
+                    ? 'ARS'
+                    : quote.symbol;
+                const currencyType =
+                  quote.symbol === 'BRLARS'
+                    ? 'ARS'
+                    : (quote.symbol === 'BRLUSD' || quote.symbol === 'BRLUSDT')
+                    ? 'USD'
+                    : '';
+                const name = `${provider.split(' ')
+                  .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                  .join(' ')} — paga con ${currencyLabel}`;
                 formattedQuotes.push({
                   name,
                   buy: typeof quote.buy === 'number' ? quote.buy : null,
                   sell: typeof quote.sell === 'number' ? quote.sell : null,
-                  spread: (typeof quote.spread === 'number') ? +quote.spread.toFixed(6) : null,
+                  spread: typeof quote.spread === 'number' ? +quote.spread.toFixed(6) : null,
                   logo: info.logo || null,
                   source: info.url || 'pix.ferminrp.com',
                   is24x7: true,
-                  variation: 0
+                  variation: 0,
+                  currencyType
                 });
               });
             }
           });
 
-          const sortedQuotes = formattedQuotes.sort((a, b) => {
-            if (a.spread === null) return 1;
-            if (b.spread === null) return -1;
-            return a.spread - b.spread;
-          });
+          // Separate ARS and USD quotes
+          const arsQuotes = formattedQuotes.filter(q => q.currencyType === 'ARS');
+          const usdQuotes = formattedQuotes.filter(q => q.currencyType === 'USD');
+          const sortedQuotes = [...arsQuotes, ...usdQuotes];
 
-          setPixQuotes(sortedQuotes);
+          // Set default selectedPixSymbol to 'ARS' or 'USD' if available
+          if (arsQuotes.length > 0) {
+            setSelectedPixSymbol('ARS');
+          } else if (usdQuotes.length > 0) {
+            setSelectedPixSymbol('USD');
+          } else {
+            setSelectedPixSymbol(null);
+          }
+
+          // Remove currencyType before setting state (keep Quote type)
+          setPixQuotes(sortedQuotes.map(({currencyType, ...rest}) => rest));
         } else {
           setPixQuotes([]);
         }
@@ -362,6 +388,28 @@ const Analysis: React.FC = () => {
       maximumFractionDigits: 2
     }).format(value);
   };
+
+  // Ordenar cotizaciones según opción seleccionada
+  const sortQuotes = (quotes: Quote[]) => {
+    return quotes.slice().sort((a, b) => {
+      if (sortOption === 'alphabetical') return a.name.localeCompare(b.name);
+      if (sortOption === 'buyAsc') return (a.buy ?? Infinity) - (b.buy ?? Infinity);
+      if (sortOption === 'buyDesc') return (b.buy ?? -Infinity) - (a.buy ?? -Infinity);
+      if (sortOption === 'sellAsc') return (a.sell ?? Infinity) - (b.sell ?? Infinity);
+      if (sortOption === 'sellDesc') return (b.sell ?? -Infinity) - (a.sell ?? -Infinity);
+      return 0;
+    });
+  };
+
+  // Mejor cotización PIX para pagar
+  const bestPixQuote = pixQuotes
+    .filter(q => selectedPixSymbol ? q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`) : true)
+    .reduce((best, current) => {
+      if (!best || (current.buy !== null && current.buy < (best.buy ?? Infinity))) {
+        return current;
+      }
+      return best;
+    }, null as Quote | null);
 
   // Main section tabs (with "Rendimientos" button)
   const MainSectionTabs = () => (
@@ -446,7 +494,7 @@ const Analysis: React.FC = () => {
           )}
           <div>
             <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              {quote.name.replace(/\s?\((USDT|USDC|BTC|ETH)\)$/i, '')}
+              {quote.name.split('—')[0].trim()}
             </h3>
             {/* Removed the link text rendering for quote.source */}
           </div>
@@ -486,14 +534,16 @@ const Analysis: React.FC = () => {
               : 'N/A'}
           </p>
         </div>
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Venta</p>
-          <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-            {typeof quote.sell === 'number'
-              ? formatCurrency(quote.sell)
-              : 'N/A'}
-          </p>
-        </div>
+        {activeQuoteSection !== 'pix' && (
+          <div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Venta</p>
+            <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              {typeof quote.sell === 'number'
+                ? formatCurrency(quote.sell)
+                : 'N/A'}
+            </p>
+          </div>
+        )}
       </div>
     </motion.div>
   );
@@ -579,7 +629,8 @@ return (
               </div>
             )}
             {activeQuoteSection === 'pix' && (() => {
-              const uniquePixSymbols = [...new Set(pixQuotes.map(q => q.name.match(/\(([^)]+)\)/)?.[1]))].filter(Boolean);
+              // The only valid symbols are 'ARS' and 'USD'
+              const uniquePixSymbols = ['ARS', 'USD'].filter(symbol => pixQuotes.some(q => q.name.includes(`paga con ${symbol}`)));
               return (
                 <div className="flex space-x-2">
                   {uniquePixSymbols.map(symbol => (
@@ -588,7 +639,7 @@ return (
                       onClick={() => setSelectedPixSymbol(symbol === selectedPixSymbol ? null : symbol)}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         selectedPixSymbol === symbol
-                          ? 'bg-purple-600 text-white'
+                          ? 'bg-blue-600 text-white'
                           : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
                       }`}
                     >
@@ -598,9 +649,24 @@ return (
                 </div>
               );
             })()}
-            <p className="text-sm text-gray-500 dark:text-gray-400 text-right ml-4 flex-1">
-              Última actualización: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </p>
+            <div className="flex items-center space-x-4 ml-4">
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Última actualización: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+              </p>
+              {activeQuoteSection !== 'dollar' && (
+                <select
+                  value={sortOption}
+                  onChange={(e) => setSortOption(e.target.value as any)}
+                  className="bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-1.5 text-sm w-60"
+                >
+                  <option value="alphabetical">Orden alfabético</option>
+                  <option value="buyAsc">Mejor compra (menor a mayor)</option>
+                  <option value="buyDesc">Mejor compra (mayor a menor)</option>
+                  <option value="sellAsc">Mejor venta (menor a mayor)</option>
+                  <option value="sellDesc">Mejor venta (mayor a menor)</option>
+                </select>
+              )}
+            </div>
           </div>
 
           {/* Mejores precios para cripto con token seleccionado o dólar con Bancos/Billeteras */}
@@ -655,7 +721,7 @@ return (
               {/* Dólar visual filter */}
               {activeQuoteSection === 'dollar' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {filteredDollarQuotes.map((quote, index) => (
+                  {sortQuotes(filteredDollarQuotes).map((quote, index) => (
                     <QuoteCard key={`dollar-${index}`} quote={quote} />
                   ))}
                 </div>
@@ -682,7 +748,7 @@ return (
                             <div key={token} className="mb-8 w-full">
                               <h3 className="text-lg font-semibold text-gray-700 dark:text-gray-200 mb-3">{token}</h3>
                               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {quotes.map((quote, index) => (
+                                {sortQuotes(quotes).map((quote, index) => (
                                   <QuoteCard key={`${token}-${index}`} quote={quote} />
                                 ))}
                               </div>
@@ -694,22 +760,32 @@ return (
                 </>
               )}
               {activeQuoteSection === 'pix' && (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                  {pixQuotes
-                    .filter(q => {
-                      if (!selectedPixSymbol) return true;
-                      const match = q.name.match(/\(([^)]+)\)/);
-                      return match?.[1] === selectedPixSymbol;
-                    })
-                    .map((quote, index) => (
-                      <QuoteCard key={`pix-${index}`} quote={quote} />
-                    ))}
-                  {pixQuotes.length === 0 && !loading && (
-                    <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
-                      No hay cotizaciones PIX disponibles en este momento
+                <>
+                  {bestPixQuote && (
+                    <div className="rounded-xl p-4 border mb-4 bg-blue-50 dark:bg-blue-900 border-blue-300 dark:border-blue-600">
+                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
+                        La mejor app para pagar en Brasil con pix en {selectedPixSymbol === 'USD' ? 'dólares' : 'pesos'} ahora es
+                        <span className="font-semibold text-blue-700 dark:text-blue-300"> {bestPixQuote.name.split('—')[0].trim()} </span>
+                        con un valor de <span className="font-bold">{formatCurrency(bestPixQuote.buy || 0)}</span>.
+                      </p>
                     </div>
                   )}
-                </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {sortQuotes(
+                      pixQuotes.filter(q => {
+                        if (!selectedPixSymbol) return true;
+                        return q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`);
+                      })
+                    ).map((quote, index) => (
+                      <QuoteCard key={`pix-${index}`} quote={quote} />
+                    ))}
+                    {pixQuotes.length === 0 && !loading && (
+                      <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
+                        No hay cotizaciones PIX disponibles en este momento
+                      </div>
+                    )}
+                  </div>
+                </>
               )}
             </>
           )}

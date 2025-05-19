@@ -31,6 +31,7 @@ interface Props {
 
 const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
   const [section, setSection] = useState<"plazos" | "billeteras" | "cripto">("plazos");
+  const [sortOption, setSortOption] = useState<'alphabetical' | 'apyDesc' | 'apyAsc'>('alphabetical');
   const [billeteras, setBilleteras] = useState<Billetera[]>([]);
   const [plazosFijos, setPlazosFijos] = useState<PlazoFijo[]>([]);
   const [cripto, setCripto] = useState<CriptoEntidad[]>([]);
@@ -71,12 +72,29 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
     fetchData();
   }, []);
 
-  const sortedPlazos = [...plazosFijos].sort((a, b) => a.entidad.localeCompare(b.entidad));
-  const sortedBilleteras = [...billeteras].sort((a, b) => a.nombre.localeCompare(b.nombre));
-  const sortedCripto = cripto.map(entidad => ({
-    ...entidad,
-    rendimientos: [...entidad.rendimientos].sort((a, b) => b.apy - a.apy)
-  }));
+  const sortedPlazos = [...plazosFijos].sort((a, b) => {
+    if (sortOption === 'apyDesc') return b.tnaClientes - a.tnaClientes;
+    if (sortOption === 'apyAsc') return a.tnaClientes - b.tnaClientes;
+    return a.entidad.localeCompare(b.entidad);
+  });
+  const sortedBilleteras = [...billeteras].sort((a, b) => {
+    if (sortOption === 'apyDesc') return b.tna - a.tna;
+    if (sortOption === 'apyAsc') return a.tna - b.tna;
+    return a.nombre.localeCompare(b.nombre);
+  });
+  const sortedCripto = cripto
+      .sort((a, b) => {
+        if (sortOption === 'alphabetical') return a.entidad.localeCompare(b.entidad);
+        const aMax = Math.max(...a.rendimientos.map(r => r.apy));
+        const bMax = Math.max(...b.rendimientos.map(r => r.apy));
+        if (sortOption === 'apyDesc') return bMax - aMax;
+        if (sortOption === 'apyAsc') return aMax - bMax;
+        return 0;
+      })
+      .map(entidad => ({
+        ...entidad,
+        rendimientos: [...entidad.rendimientos].sort((a, b) => b.apy - a.apy)
+      }));
 
   const getMaxAPY = (moneda: string): number => {
     let max = 0;
@@ -108,51 +126,60 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
   // eslint-disable-next-line
   return (
     <>
-      <div className="flex gap-2 mb-2">
-        <button
-          onClick={() => setSection('plazos')}
-          className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
-            section === 'plazos'
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <Landmark size={18} className="mr-2" />
-          Plazos Fijos
-        </button>
-        <button
-          onClick={() => setSection('billeteras')}
-          className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
-            section === 'billeteras'
-              ? 'bg-purple-600 text-white hover:bg-purple-700'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <svg className="mr-2 w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
-            <rect x="3" y="7" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/>
-            <path d="M7 7V5a2 2 0 012-2h6a2 2 0 012 2v2" stroke="currentColor" strokeWidth="2" fill="none"/>
-            <circle cx="15" cy="12" r="1" fill="currentColor"/>
-          </svg>
-          Billeteras
-        </button>
-        <button
-          onClick={() => setSection('cripto')}
-          className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
-            section === 'cripto'
-              ? 'bg-orange-600 text-white hover:bg-orange-700'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
-          }`}
-        >
-          <Bitcoin size={18} className="mr-2" />
-          Criptomonedas
-        </button>
-      </div>
-      {/* Filtros y última actualización */}
-      {/* Aquí irían los filtros secundarios, por ejemplo: */}
-      {/* <div className="flex gap-2 ..."> ... </div> */}
-      {/* Última actualización: debajo de los filtros secundarios */}
-      <div className="text-sm text-gray-500 dark:text-gray-400 text-right mt-2">
-        Última actualización: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      <div className="flex justify-between items-center flex-wrap gap-4 mb-4">
+        <div className="flex gap-2">
+          <button
+            onClick={() => setSection('plazos')}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+              section === 'plazos'
+                ? 'bg-blue-600 text-white hover:bg-blue-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Landmark size={18} className="mr-2" />
+            Plazos Fijos
+          </button>
+          <button
+            onClick={() => setSection('billeteras')}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+              section === 'billeteras'
+                ? 'bg-purple-600 text-white hover:bg-purple-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <svg className="mr-2 w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+              <rect x="3" y="7" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/>
+              <path d="M7 7V5a2 2 0 012-2h6a2 2 0 012 2v2" stroke="currentColor" strokeWidth="2" fill="none"/>
+              <circle cx="15" cy="12" r="1" fill="currentColor"/>
+            </svg>
+            Billeteras
+          </button>
+          <button
+            onClick={() => setSection('cripto')}
+            className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
+              section === 'cripto'
+                ? 'bg-orange-600 text-white hover:bg-orange-700'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            <Bitcoin size={18} className="mr-2" />
+            Criptomonedas
+          </button>
+        </div>
+        <div className="flex items-center gap-3">
+          <p className="text-sm text-gray-600 dark:text-gray-300 font-medium whitespace-nowrap">
+            Última actualización: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
+          </p>
+          <select
+            value={sortOption}
+            onChange={(e) => setSortOption(e.target.value as any)}
+            className="px-4 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md text-sm text-gray-800 dark:text-white bg-white dark:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+          >
+            <option value="alphabetical">Orden alfabético</option>
+            <option value="apyDesc">Mayor rendimiento</option>
+            <option value="apyAsc">Menor rendimiento</option>
+          </select>
+        </div>
       </div>
       <div className="space-y-6">
       {isLoading ? (
