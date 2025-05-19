@@ -120,20 +120,21 @@ const Simulator: React.FC = () => {
 
     fetchRates();
 
-    // Fetch inflación esperada oficial del BCRA
+    // Fetch inflación oficial del INDEC desde datos.gob.ar (último valor mensual disponible)
     const fetchInflation = async () => {
       try {
-        const res = await axios.get('https://api.estadisticasbcra.com/inflacion_esperada_oficial', {
-          headers: {
-            Authorization: 'BEARER eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzkxNDcxMjcsInR5cGUiOiJleHRlcm5hbCIsInVzZXIiOiJqb2Fjb2Nhc3RlMDBAZ21haWwuY29tIn0.cXS3YSQ44dd3295OE1IpXtrQaWB-eHcjlzPu_dfHrta0Ah1oYU6KHOcb3A-Jq-R_UVvA8axWDXSOkDaZI-UH-g'
+        const res = await axios.get(
+          'https://apis.datos.gob.ar/series/api/series/?metadata=full&collapse=month&ids=103.1_I2N_2016_M_19&limit=5000&representation_mode=percent_change&start=0'
+        );
+        if (res.data?.data && Array.isArray(res.data.data)) {
+          const lastRow = res.data.data[res.data.data.length - 1];
+          const lastValue = lastRow[3] ?? lastRow[2] ?? lastRow[1]; // uso del valor más reciente disponible
+          if (typeof lastValue === 'number') {
+            setMonthlyInflation(parseFloat((lastValue * 100).toFixed(2))); // lo multiplicamos por 100 porque la API devuelve proporción
           }
-        });
-        if (Array.isArray(res.data)) {
-          const latest = res.data[res.data.length - 1];
-          setMonthlyInflation(parseFloat(latest.v.toFixed(2)));
         }
       } catch (e) {
-        console.error('Error al obtener inflación esperada oficial:', e);
+        console.error('Error al obtener inflación oficial del INDEC:', e);
       }
     };
     fetchInflation();
@@ -521,12 +522,27 @@ const Simulator: React.FC = () => {
                       <p className="text-sm font-semibold text-yellow-800 dark:text-yellow-200 uppercase tracking-wide mb-1">
                         Análisis de cuotas
                       </p>
+                      {/* Cuotas ajustadas por inflación acumulada - PRIMERO */}
+                      {installmentResult.adjustedInstallments && (
+                        <div className="mb-4">
+                          <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Cuotas ajustadas por inflación acumulada</h4>
+                          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-sm text-gray-600 dark:text-gray-400">
+                            {installmentResult.adjustedInstallments.map((v, i) => (
+                              <div key={i} className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1">
+                                Cuota #{i + 1}: ${v.toFixed(0)}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      {/* Total financiado */}
                       <div className="flex justify-between items-center border-b border-yellow-100 dark:border-yellow-600 pb-2">
                         <span className="text-sm text-gray-600 dark:text-gray-300">Total financiado:</span>
                         <span className="font-semibold text-yellow-800 dark:text-yellow-400 text-sm">
                           {formatCurrency(installmentResult.totalFinanced)}
                         </span>
                       </div>
+                      {/* CFT anual efectivo */}
                       <div className="flex justify-between items-center border-b border-yellow-100 dark:border-yellow-600 pb-2">
                         <span className="text-sm text-gray-600 dark:text-gray-300">
                           Costo Financiero Total (CFT anual efectivo)
@@ -535,9 +551,11 @@ const Simulator: React.FC = () => {
                           {installmentResult.cft.toFixed(2)}%
                         </span>
                       </div>
+                      {/* Explicación CFT */}
                       <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                        El CFT anual efectivo refleja el costo total del financiamiento. Se calcula como la tasa anual compuesta que iguala el valor de las cuotas al precio contado. Si da negativo o 0%, puede deberse a montos inconsistentes.                      </div>
-                      {/* "Conviene:" section removed as per instructions */}
+                        El CFT anual efectivo refleja el costo total del financiamiento. Se calcula como la tasa anual compuesta que iguala el valor de las cuotas al precio contado. Si da negativo o 0%, puede deberse a montos inconsistentes.
+                      </div>
+                      {/* Inflación mensual estimada */}
                       <div className="flex justify-between items-center">
                         <span className="text-sm text-gray-600 dark:text-gray-300">Inflación mensual estimada:</span>
                         <span className="font-medium text-yellow-700 text-sm">
@@ -545,40 +563,27 @@ const Simulator: React.FC = () => {
                         </span>
                       </div>
                     </div>
-                    {/* Ajuste por inflación */}
-                    {installmentResult.adjustedInstallments && (
-                      <div className="mt-6">
-                        <h4 className="font-semibold text-gray-700 dark:text-gray-200 mb-2">Cuotas ajustadas por inflación acumulada</h4>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-2 text-sm text-gray-600 dark:text-gray-400">
-                          {installmentResult.adjustedInstallments.map((v, i) => (
-                            <div key={i} className="bg-gray-50 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded px-2 py-1">
-                              Cuota #{i + 1}: ${v.toFixed(0)}
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                     {/* Simulación alternativa */}
-                      <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div className="p-4 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-xl shadow-sm">
-                          <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">FCI (billetera promedio):</p>
-                          <p className="text-blue-600 font-bold text-lg">{formatCurrency(installmentResult.fciProjection)}</p>
-                          <p className="text-xs text-blue-600 mt-1">TNA estimada: {walletRates.length
-                            ? (walletRates.reduce((sum, r) => sum + r.rate, 0) / walletRates.length).toFixed(2)
-                            : '30.00'}%</p>
-                        </div>
-                        <div className="p-4 bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-green-700 rounded-xl shadow-sm">
-                          <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">Plazo Fijo promedio:</p>
-                          <p className="text-green-600 font-bold text-lg">{formatCurrency(installmentResult.pfProjection)}</p>
-                          <p className="text-xs text-green-600 mt-1">TNA estimada: {bankRates.length
-                            ? (bankRates.reduce((sum, r) => sum + r.rate, 0) / bankRates.length).toFixed(2)
-                            : '35.00'}%</p>
-                        </div>
+                    <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="p-4 bg-blue-50 dark:bg-gray-800 border border-blue-200 dark:border-blue-700 rounded-xl shadow-sm">
+                        <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">FCI (billetera promedio):</p>
+                        <p className="text-blue-600 font-bold text-lg">{formatCurrency(installmentResult.fciProjection)}</p>
+                        <p className="text-xs text-blue-600 mt-1">TNA estimada: {walletRates.length
+                          ? (walletRates.reduce((sum, r) => sum + r.rate, 0) / walletRates.length).toFixed(2)
+                          : '30.00'}%</p>
                       </div>
-                      <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
-                        <p><strong>¿Qué es FCI?</strong> Fondo Común de Inversión, como las cuentas remuneradas (ej: MercadoPago), donde el dinero genera intereses diarios y se puede retirar en cualquier momento.</p>
-                        <p className="mt-2"><strong>¿Qué es un Plazo Fijo?</strong> Es una inversión bancaria en la que el dinero queda inmovilizado por un período (ej: 30 días), y se cobra el interés al final del plazo.</p>
+                      <div className="p-4 bg-green-50 dark:bg-gray-800 border border-green-200 dark:border-green-700 rounded-xl shadow-sm">
+                        <p className="text-gray-700 dark:text-gray-200 font-medium mb-1">Plazo Fijo promedio:</p>
+                        <p className="text-green-600 font-bold text-lg">{formatCurrency(installmentResult.pfProjection)}</p>
+                        <p className="text-xs text-green-600 mt-1">TNA estimada: {bankRates.length
+                          ? (bankRates.reduce((sum, r) => sum + r.rate, 0) / bankRates.length).toFixed(2)
+                          : '35.00'}%</p>
                       </div>
+                    </div>
+                    <div className="mt-4 text-sm text-gray-600 dark:text-gray-400">
+                      <p><strong>¿Qué es FCI?</strong> Fondo Común de Inversión, como las cuentas remuneradas (ej: MercadoPago), donde el dinero genera intereses diarios y se puede retirar en cualquier momento.</p>
+                      <p className="mt-2"><strong>¿Qué es un Plazo Fijo?</strong> Es una inversión bancaria en la que el dinero queda inmovilizado por un período (ej: 30 días), y se cobra el interés al final del plazo.</p>
+                    </div>
                   </>
                 )}
               </div>

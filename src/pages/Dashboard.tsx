@@ -20,12 +20,12 @@ import axios from 'axios';
 
 // Register ChartJS components
 ChartJS.register(
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  Title, 
-  Tooltip, 
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
   Legend,
   ArcElement,
   Filler
@@ -36,7 +36,7 @@ interface DollarQuote {
   name: string;
   buy: number;
   sell: number;
-  variation: number;
+  variation: number | null;
 }
 
 interface CryptoQuote {
@@ -61,24 +61,40 @@ const Dashboard: React.FC = () => {
   const [cryptoQuotes, setCryptoQuotes] = useState<CryptoQuote[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(true);
 
-  // Estado para inflación mensual oficial (solo último valor y error)
+  // Estado para inflación mensual oficial (último valor, fecha y error)
   const [lastInflation, setLastInflation] = useState<number | null>(null);
+  const [lastInflationDate, setLastInflationDate] = useState<string | null>(null);
   const [inflationError, setInflationError] = useState(false);
   useEffect(() => {
     const fetchInflationData = async () => {
       try {
-        const res = await axios.get('https://api.estadisticasbcra.com/inflacion_mensual_oficial', {
-          headers: {
-            Authorization: 'BEARER eyJhbGciOiJIUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE3NzkxNTI4NjAsInR5cGUiOiJleHRlcm5hbCIsInVzZXIiOiJqb2Fjb2Nhc3RlMDBAZ21haWwuY29tIn0.-aP6YcNy4cwXRT0p5yFyKV9Vk0xpHY6te-inXECshrkL6lcbTITLt1ayyogDgkrLag3MZoDKqDHaTGp72djKyA'
+        const response = await fetch('https://apis.datos.gob.ar/series/api/series/?metadata=full&collapse=month&ids=103.1_I2N_2016_M_19&limit=5000&representation_mode=percent_change&start=0');
+        const json = await response.json();
+
+        const rawData = json.data;
+        if (rawData && rawData.length > 0) {
+          const today = new Date();
+          const recentEntry = rawData
+            .map((entry: any) => ({
+              date: new Date(entry[0]),
+              value: entry[1]
+            }))
+            .filter(entry => entry.date <= today && entry.value !== null)
+            .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+
+          if (recentEntry) {
+            setLastInflation(recentEntry.value * 100);
+            setLastInflationDate(recentEntry.date.toISOString().split('T')[0]);
+          } else {
+            console.warn("No hay datos de inflación recientes.");
+            setInflationError(true);
           }
-        });
-        if (res.data && res.data.length > 0) {
-          setLastInflation(res.data[res.data.length - 1].v);
         } else {
+          console.warn("No se recibieron datos de inflación.");
           setInflationError(true);
         }
       } catch (error) {
-        console.error('Error fetching inflation data:', error);
+        console.error('Error fetching inflación desde datos.gob.ar:', error);
         setInflationError(true);
       }
     };
@@ -254,57 +270,19 @@ const Dashboard: React.FC = () => {
   // Fetch market data
   useEffect(() => {
     const fetchMarketData = async () => {
-      let combinedQuotes: DollarQuote[] = [];
       try {
         setLoadingQuotes(true);
 
-        // Fetch dollar quotes - nueva versión con dolarapi.com + comparadolar.ar
+        // Fetch dollar quotes - unificado
         try {
-          const [dolarApiRes, comparaRes] = await Promise.all([
-            axios.get('https://dolarapi.com/v1/dolares'),
-            axios.get('https://api.comparadolar.ar/quotes')
-          ]);
-
-          // Normalizador de nombres para mejor match
-          const normalizeName = (name: string) =>
-            name.toLowerCase()
-              .replace('dólar', 'usd')
-              .replace('tarjeta', 'tarjeta')
-              .replace('blue', 'blue')
-              .replace('bolsa', 'bolsa')
-              .replace('contado con liquidación', 'contado con liquidación')
-              .replace('mayorista', 'mayorista')
-              .replace('cripto', 'cripto')
-              .trim();
-
-          const getUSDOrder = (name: string) => {
-            const priority = [
-              'USD Tarjeta',
-              'USD Cripto',
-              'USD Blue',
-              'USD Bolsa',
-              'USD Contado con liquidación',
-              'USD Oficial',
-              'USD Mayorista'
-            ];
-            const index = priority.findIndex(p => name === p);
-            return index === -1 ? 99 : index;
-          };
-
-          combinedQuotes = dolarApiRes.data.map((item: any) => {
-            const matched = comparaRes.data.find((d: any) =>
-              normalizeName(d.name) === normalizeName(item.nombre)
-            );
-            return {
-              name: item.nombre,
-              buy: item.compra,
-              sell: item.venta,
-              variation: matched?.variation !== undefined ? matched.variation : null
-            };
-          });
-
-          combinedQuotes.sort((a, b) => getUSDOrder(a.name) - getUSDOrder(b.name));
-          setDollarQuotes(combinedQuotes);
+          const response = await axios.get('https://dolarapi.com/v1/ambito/dolares');
+          const quotes: DollarQuote[] = response.data.map((item: any) => ({
+            name: item.nombre,
+            buy: item.compra,
+            sell: item.venta,
+            variation: item.variacion ?? null
+          }));
+          setDollarQuotes(quotes);
         } catch (err) {
           console.error('Error al obtener cotizaciones del dólar:', err);
           setDollarQuotes([]);
@@ -314,9 +292,8 @@ const Dashboard: React.FC = () => {
         try {
           const res = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=ars,usd&include_24hr_change=true');
           const data = res.data;
-          // Get CCL rate from combinedQuotes
-          const cclQuote = combinedQuotes.find(q => q.name.toLowerCase().includes('contado'));
-          const cclRate = cclQuote?.sell ?? 1100;
+          // No CCL disponible, usar 1100 como fallback
+          const cclRate = 1100;
           const formattedCryptoQuotes: CryptoQuote[] = [
             { name: 'USDT', price: data['tether'].ars, variation: data['tether'].ars_24h_change },
             { name: 'USDC', price: data['usd-coin'].ars, variation: data['usd-coin'].ars_24h_change },
@@ -656,11 +633,9 @@ const Dashboard: React.FC = () => {
               <div className="space-y-3">
                 {dollarQuotes.map((quote, index) => (
                   <div key={index} className="grid grid-cols-12 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    {/* Nombre */}
                     <div className="col-span-4 flex items-center">
                       <p className="font-medium text-gray-800 dark:text-gray-100">{quote.name}</p>
                     </div>
-                    {/* Compra / Venta */}
                     <div className="col-span-5 flex flex-wrap justify-end items-center gap-x-4 text-right">
                       <span className="flex items-center">
                         <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Compra:</span>
@@ -671,22 +646,21 @@ const Dashboard: React.FC = () => {
                         <span className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.sell)}</span>
                       </span>
                     </div>
-                    {/* Variación */}
                     <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
                       {quote.variation !== undefined && quote.variation !== null ? (
-                        <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
-                        </span>
+                        <>
+                          <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
+                          </span>
+                          {quote.variation >= 0 ? (
+                            <ArrowUpRight size={12} className="ml-1 text-green-600" />
+                          ) : (
+                            <ArrowDownRight size={12} className="ml-1 text-red-600" />
+                          )}
+                        </>
                       ) : (
                         <span className="text-xs text-gray-400">–</span>
                       )}
-                      {quote.variation !== undefined && quote.variation !== null ? (
-                        quote.variation >= 0 ? (
-                          <ArrowUpRight size={12} className="ml-1 text-green-600" />
-                        ) : (
-                          <ArrowDownRight size={12} className="ml-1 text-red-600" />
-                        )
-                      ) : null}
                     </div>
                   </div>
                 ))}
@@ -761,6 +735,9 @@ const Dashboard: React.FC = () => {
                   <div className="flex flex-col justify-center">
                     <p className="text-base font-medium text-gray-800 dark:text-gray-100">Inflación mensual oficial</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">Fuente: BCRA</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {lastInflationDate ? `Última actualización: ${lastInflationDate}` : null}
+                    </p>
                   </div>
                   <div className="text-right">
                     {inflationError ? (

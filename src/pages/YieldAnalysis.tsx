@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
+import { Bitcoin, Landmark } from 'lucide-react';
 
 type Billetera = {
   nombre: string;
   tna: number;
   limite: number;
+  url?: string;
 };
 
 type PlazoFijo = {
@@ -16,6 +18,7 @@ type PlazoFijo = {
 type CriptoEntidad = {
   entidad: string;
   logo: string;
+  url?: string;
   rendimientos: {
     moneda: string;
     apy: number;
@@ -52,6 +55,8 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
         const plazosData = await plazosRes.json();
         const criptoData = await criptoRes.json();
 
+        console.log('Billeteras recibidas:', billeterasData);
+
         setBilleteras(billeterasData);
         setPlazosFijos(plazosData);
         setCripto(criptoData);
@@ -66,8 +71,8 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
     fetchData();
   }, []);
 
-  const sortedPlazos = [...plazosFijos].sort((a, b) => b.tnaClientes - a.tnaClientes);
-  const sortedBilleteras = [...billeteras].sort((a, b) => b.tna - a.tna);
+  const sortedPlazos = [...plazosFijos].sort((a, b) => a.entidad.localeCompare(b.entidad));
+  const sortedBilleteras = [...billeteras].sort((a, b) => a.nombre.localeCompare(b.nombre));
   const sortedCripto = cripto.map(entidad => ({
     ...entidad,
     rendimientos: [...entidad.rendimientos].sort((a, b) => b.apy - a.apy)
@@ -92,6 +97,10 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
     'lemoncash': '/icons/lemoncash.svg',
     'ripio': '/icons/ripio.svg',
     'satoshitango': '/icons/satoshitango.svg',
+    'cocos': '/icons/cocos.svg',
+    'prex': '/icons/prex.svg',
+    'lb': '/icons/lb.svg',
+    'mercadopago': '/icons/mercadopago.svg',
   };
 
   // Barra de navegación para cambiar de sección
@@ -99,37 +108,51 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
   // eslint-disable-next-line
   return (
     <>
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-2">
         <button
           onClick={() => setSection('plazos')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+          className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
             section === 'plazos'
               ? 'bg-blue-600 text-white hover:bg-blue-700'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
+          <Landmark size={18} className="mr-2" />
           Plazos Fijos
         </button>
         <button
           onClick={() => setSection('billeteras')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+          className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
             section === 'billeteras'
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              ? 'bg-purple-600 text-white hover:bg-purple-700'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
+          <svg className="mr-2 w-[18px] h-[18px]" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 20 20">
+            <rect x="3" y="7" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" fill="none"/>
+            <path d="M7 7V5a2 2 0 012-2h6a2 2 0 012 2v2" stroke="currentColor" strokeWidth="2" fill="none"/>
+            <circle cx="15" cy="12" r="1" fill="currentColor"/>
+          </svg>
           Billeteras
         </button>
         <button
           onClick={() => setSection('cripto')}
-          className={`rounded-lg px-4 py-2 text-sm font-medium transition-colors ${
+          className={`flex items-center px-4 py-2 rounded-lg transition-colors text-sm font-medium ${
             section === 'cripto'
-              ? 'bg-blue-600 text-white hover:bg-blue-700'
+              ? 'bg-orange-600 text-white hover:bg-orange-700'
               : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
           }`}
         >
+          <Bitcoin size={18} className="mr-2" />
           Criptomonedas
         </button>
+      </div>
+      {/* Filtros y última actualización */}
+      {/* Aquí irían los filtros secundarios, por ejemplo: */}
+      {/* <div className="flex gap-2 ..."> ... </div> */}
+      {/* Última actualización: debajo de los filtros secundarios */}
+      <div className="text-sm text-gray-500 dark:text-gray-400 text-right mt-2">
+        Última actualización: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
       </div>
       <div className="space-y-6">
       {isLoading ? (
@@ -144,21 +167,61 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
 
           {section === 'plazos' && (
             <section>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-3">🏦 Plazos Fijos</h3>
+              <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">Plazos Fijos</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {sortedPlazos.map((p, i) => (
-                  <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 flex items-center space-x-4 hover:shadow-md transition">
-                    <img src={p.logo} alt={p.entidad} className="w-10 h-10 object-contain" />
-                    <div>
-                      <h4 className="font-semibold text-gray-800 dark:text-gray-100">{p.entidad}</h4>
-                      <p className="text-sm text-gray-600 dark:text-gray-300 font-semibold">TNA Clientes: {(p.tnaClientes * 100).toFixed(2)}%</p>
-                      {p.enlace && (
-                        <a href={p.enlace} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 text-sm underline">
-                          Ir al sitio
-                        </a>
-                      )}
+                  p.enlace ? (
+                    <a
+                      key={i}
+                      href={p.enlace}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="relative bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 flex items-center space-x-4 hover:shadow-md transition no-underline"
+                    >
+                      <span className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-sm font-medium px-3 py-0.5 rounded-full border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700">
+                        {(p.tnaClientes * 100).toFixed(2)}%
+                      </span>
+                      <img
+                        src={p.logo || '/placeholder-logo.svg'}
+                        alt={p.entidad}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.dataset.fallback) {
+                            target.src = '/placeholder-logo.svg';
+                            target.dataset.fallback = 'true';
+                          }
+                        }}
+                        className="w-10 h-10 object-contain"
+                      />
+                      <div>
+                        <h4 className="font-semibold text-gray-800 dark:text-gray-100">{p.entidad}</h4>
+                      </div>
+                    </a>
+                  ) : (
+                    <div
+                      key={i}
+                      className="relative bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 flex items-center space-x-4 cursor-default"
+                    >
+                      <span className="absolute top-3 right-3 bg-blue-100 text-blue-700 text-sm font-medium px-3 py-0.5 rounded-full border border-blue-200 dark:bg-blue-900 dark:text-blue-300 dark:border-blue-700">
+                        {(p.tnaClientes * 100).toFixed(2)}%
+                      </span>
+                      <img
+                        src={p.logo || '/placeholder-logo.svg'}
+                        alt={p.entidad}
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.dataset.fallback) {
+                            target.src = '/placeholder-logo.svg';
+                            target.dataset.fallback = 'true';
+                          }
+                        }}
+                        className="w-10 h-10 object-contain"
+                      />
+                      <div>
+                        <h4 className="font-semibold text-gray-800 dark:text-gray-100">{p.entidad}</h4>
+                      </div>
                     </div>
-                  </div>
+                  )
                 ))}
               </div>
             </section>
@@ -166,48 +229,128 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
 
           {section === 'billeteras' && (
             <section>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-3">📱 Cuentas y Billeteras</h3>
+              <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">Billeteras</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                {sortedBilleteras.map((b, i) => (
-                  <div key={i} className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition">
-                    <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-lg">{b.nombre}</h4>
-                    <p className="text-sm text-gray-600 dark:text-gray-300 font-semibold">TNA: {b.tna}%</p>
-                    <p className="text-xs text-gray-600 dark:text-gray-300 font-semibold mt-1">Límite: ${b.limite.toLocaleString()}</p>
-                  </div>
-                ))}
+                {sortedBilleteras.map((b, i) => {
+                  const lowerNombre = b.nombre.toLowerCase();
+                  const iconSrc = iconMap[lowerNombre] || '/placeholder-logo.svg';
+                  return b.url ? (
+                    <a
+                      key={i}
+                      href={b.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="relative bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition flex items-center space-x-4 no-underline"
+                    >
+                      <span className="absolute top-3 right-3 bg-purple-100 text-purple-700 text-sm font-medium px-3 py-0.5 rounded-full border border-purple-200 dark:bg-purple-900 dark:text-purple-300 dark:border-purple-700">
+                        {b.tna.toFixed(2)}%
+                      </span>
+                      <img
+                        src={iconSrc}
+                        alt={b.nombre}
+                        loading="lazy"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.dataset.fallback) {
+                            target.src = '/placeholder-logo.svg';
+                            target.dataset.fallback = 'true';
+                          }
+                        }}
+                        className="w-8 h-8 object-contain"
+                      />
+                      <div>
+                        <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-lg">{b.nombre}</h4>
+                        <p className="text-xs text-gray-600 dark:text-gray-300 font-semibold mt-1">Límite: ${b.limite.toLocaleString()}</p>
+                      </div>
+                    </a>
+                  ) : (
+                    <div
+                      key={i}
+                      className="relative bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 hover:shadow-md transition flex items-center space-x-4 cursor-default"
+                    >
+                      <span className="absolute top-3 right-3 bg-purple-100 text-purple-700 text-sm font-medium px-3 py-0.5 rounded-full border border-purple-200 dark:bg-purple-900 dark:text-purple-300 dark:border-purple-700">
+                        {b.tna.toFixed(2)}%
+                      </span>
+                      <img
+                        src={iconSrc}
+                        alt={b.nombre}
+                        loading="lazy"
+                        onError={(e) => {
+                          const target = e.target as HTMLImageElement;
+                          if (!target.dataset.fallback) {
+                            target.src = '/placeholder-logo.svg';
+                            target.dataset.fallback = 'true';
+                          }
+                        }}
+                        className="w-8 h-8 object-contain"
+                      />
+                      <div>
+                        <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-lg">{b.nombre}</h4>
+                        <p className="text-xs text-gray-600 dark:text-gray-300 font-semibold mt-1">Límite: ${b.limite.toLocaleString()}</p>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </section>
           )}
 
           {section === 'cripto' && (
             <section>
-              <h3 className="text-xl font-bold text-gray-800 dark:text-gray-100 mb-3">🪙 Rendimientos Cripto</h3>
+              <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-3">Criptomonedas</h3>
               <div className="overflow-x-auto">
-                <table className="table-auto w-full text-sm border border-gray-300 dark:border-gray-600">
+                <table className="table-auto w-full text-sm rounded-xl bg-white dark:bg-gray-900 shadow-md divide-y divide-gray-200 dark:divide-gray-700">
                   <thead>
-                    <tr className="bg-gray-100 dark:bg-gray-700 text-center uppercase text-xs tracking-wide text-gray-600 dark:text-gray-300">
-                      <th className="border border-gray-300 dark:border-gray-600 px-4 py-3 text-gray-800 dark:text-gray-100">Criptomoneda</th>
-                      {sortedCripto.map((entidad, idx) => (
-                        <th key={idx} className="border border-gray-300 dark:border-gray-600 px-4 py-3 text-center text-gray-800 dark:text-gray-100">
-                          <div className="flex flex-col items-center justify-center space-y-1">
-                            {iconMap[entidad.entidad.toLowerCase()] || entidad.logo ? (
-                              <img
-                                src={iconMap[entidad.entidad.toLowerCase()] || entidad.logo || '/placeholder-logo.svg'}
-                                alt={entidad.entidad}
-                                onError={(e) => {
-                                  const target = e.target as HTMLImageElement;
-                                  if (!target.dataset.fallback) {
-                                    target.src = '/placeholder-logo.svg';
-                                    target.dataset.fallback = 'true';
-                                  }
-                                }}
-                                className="w-6 h-6 object-contain"
-                              />
-                            ) : null}
-                            <span className="text-xs font-medium text-gray-800 dark:text-gray-100">{entidad.entidad}</span>
-                          </div>
-                        </th>
-                      ))}
+                    <tr className="text-xs font-bold text-gray-700 dark:text-gray-300 bg-gray-100 dark:bg-gray-800 uppercase text-center tracking-wide">
+                      <th className="px-4 py-3 text-gray-800 dark:text-gray-100">Criptomoneda</th>
+                      {sortedCripto.map((entidad, idx) => {
+                        const lowerEntidad = entidad.entidad.toLowerCase();
+                        const iconSrc = iconMap[lowerEntidad] || entidad.logo || '/placeholder-logo.svg';
+                        return (
+                          <th key={idx} className="px-4 py-3 text-center text-gray-800 dark:text-gray-100">
+                            {entidad.url ? (
+                              <a
+                                href={entidad.url}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex flex-col items-center justify-center space-y-1 hover:underline"
+                              >
+                                <img
+                                  src={iconSrc}
+                                  alt={entidad.entidad}
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    if (!target.dataset.fallback) {
+                                      target.src = '/placeholder-logo.svg';
+                                      target.dataset.fallback = 'true';
+                                    }
+                                  }}
+                                  className="w-6 h-6 object-contain"
+                                />
+                                <span className="text-xs font-medium text-gray-800 dark:text-gray-100">{entidad.entidad}</span>
+                              </a>
+                            ) : (
+                              <div className="flex flex-col items-center justify-center space-y-1">
+                                <img
+                                  src={iconSrc}
+                                  alt={entidad.entidad}
+                                  loading="lazy"
+                                  onError={(e) => {
+                                    const target = e.target as HTMLImageElement;
+                                    if (!target.dataset.fallback) {
+                                      target.src = '/placeholder-logo.svg';
+                                      target.dataset.fallback = 'true';
+                                    }
+                                  }}
+                                  className="w-6 h-6 object-contain"
+                                />
+                                <span className="text-xs font-medium text-gray-800 dark:text-gray-100">{entidad.entidad}</span>
+                              </div>
+                            )}
+                          </th>
+                        );
+                      })}
                     </tr>
                   </thead>
                   <tbody>
@@ -221,16 +364,18 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
                       .map((moneda, idx) => {
                         const maxAPY = getMaxAPY(moneda);
                         return (
-                          <tr key={idx} className="text-center even:bg-gray-50 dark:even:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
-                            <td className="border border-gray-300 dark:border-gray-600 px-4 py-3 font-semibold text-left text-gray-800 dark:text-gray-100 text-sm">{moneda}</td>
+                          <tr key={idx} className="hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+                            <td className="px-4 py-3 text-sm text-gray-800 dark:text-gray-200 font-semibold text-left">{moneda}</td>
                             {sortedCripto.map((entidad, cidx) => {
                               const rendimiento = entidad.rendimientos.find(r => r.moneda === moneda);
                               const isMax = rendimiento && typeof rendimiento.apy === 'number' && rendimiento.apy === maxAPY && maxAPY > 0;
                               return (
                                 <td
                                   key={cidx}
-                                  className={`border border-gray-300 dark:border-gray-600 px-4 py-3 text-sm ${
-                                    isMax ? 'bg-blue-100 text-blue-700 font-bold dark:bg-blue-900 dark:text-blue-300 rounded-lg ring-1 ring-blue-300 dark:ring-blue-600' : 'text-gray-800 dark:text-gray-100'
+                                  className={`px-4 py-3 text-sm text-gray-800 dark:text-gray-200 text-center ${
+                                    isMax
+                                      ? 'bg-orange-50 dark:bg-orange-900 text-orange-700 dark:text-orange-300 font-semibold ring-1 ring-orange-200 dark:ring-orange-600 rounded-md'
+                                      : ''
                                   }`}
                                 >
                                   {rendimiento && typeof rendimiento.apy === 'number' && rendimiento.apy > 0

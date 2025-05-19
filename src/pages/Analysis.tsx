@@ -97,46 +97,58 @@ const Analysis: React.FC = () => {
   // PIX visual filter logic: selectedPixSymbol
   const [selectedPixSymbol, setSelectedPixSymbol] = useState<string | null>(null);
   // Filtro para cotizaciones de dólar según selección visual
-  const filteredDollarQuotes = dollarQuotes.filter(({ name }) => {
-    if (selectedCurrency === 'USD') {
-      // Solo USD Oficial, USD Blue, USD Bolsa, USD CCL, USD Tarjeta, USD Mayorista
-      return (
-        name.toLowerCase().includes('oficial') ||
-        name.toLowerCase().includes('blue') ||
-        name.toLowerCase().includes('bolsa') ||
-        name.toLowerCase().includes('contado con liquidación') ||
-        name.toLowerCase().includes('tarjeta') ||
-        name.toLowerCase().includes('mayorista')
-      );
-    }
+  const filteredDollarQuotes = (() => {
+    let filtered = dollarQuotes.filter(({ name }) => {
+      if (selectedCurrency === 'USD') {
+        // Solo USD Oficial, USD Blue, USD Bolsa, USD CCL, USD Tarjeta, USD Mayorista
+        return (
+          name.toLowerCase().includes('oficial') ||
+          name.toLowerCase().includes('blue') ||
+          name.toLowerCase().includes('bolsa') ||
+          name.toLowerCase().includes('contado con liquidación') ||
+          name.toLowerCase().includes('ccl') ||
+          name.toLowerCase().includes('tarjeta') ||
+          name.toLowerCase().includes('mayorista')
+        );
+      }
+      if (selectedCurrency === 'Bancos') {
+        // Bancos tradicionales
+        return (
+          name.toLowerCase().includes('banco') ||
+          name.toLowerCase().includes('nacion') ||
+          name.toLowerCase().includes('galicia') ||
+          name.toLowerCase().includes('santander') ||
+          name.toLowerCase().includes('bbva') ||
+          name.toLowerCase().includes('hsbc') ||
+          name.toLowerCase().includes('macro') ||
+          name.toLowerCase().includes('supervielle')
+        );
+      }
+      if (selectedCurrency === 'Billeteras Virtuales') {
+        // Alternativos: billeteras, exchanges, fintechs
+        return (
+          name.toLowerCase().includes('bit') ||
+          name.toLowerCase().includes('fiwind') ||
+          name.toLowerCase().includes('plus') ||
+          name.toLowerCase().includes('plus-') ||
+          name.toLowerCase().includes('ripio') ||
+          name.toLowerCase().includes('crypto') ||
+          name.toLowerCase().includes('naranja') ||
+          name.toLowerCase().includes('brubank') ||
+          name.toLowerCase().includes('lemon')
+        );
+      }
+      return true;
+    });
+    // Ordenar alfabéticamente si es Bancos o Billeteras Virtuales
     if (selectedCurrency === 'Bancos') {
-      // Bancos tradicionales
-      return (
-        name.toLowerCase().includes('banco') ||
-        name.toLowerCase().includes('nacion') ||
-        name.toLowerCase().includes('galicia') ||
-        name.toLowerCase().includes('santander') ||
-        name.toLowerCase().includes('bbva') ||
-        name.toLowerCase().includes('hsbc') ||
-        name.toLowerCase().includes('macro') ||
-        name.toLowerCase().includes('supervielle')
-      );
+      filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
     }
     if (selectedCurrency === 'Billeteras Virtuales') {
-      // Alternativos: billeteras, exchanges, fintechs
-      return (
-        name.toLowerCase().includes('bit') ||
-        name.toLowerCase().includes('fiwind') ||
-        name.toLowerCase().includes('plus') ||
-        name.toLowerCase().includes('ripio') ||
-        name.toLowerCase().includes('crypto') ||
-        name.toLowerCase().includes('naranja') ||
-        name.toLowerCase().includes('brubank') ||
-        name.toLowerCase().includes('lemon')
-      );
+      filtered = filtered.sort((a, b) => a.name.localeCompare(b.name));
     }
-    return true;
-  });
+    return filtered;
+  })();
 
   // Fetch dollar quotes: combina DolarAPI y ComparaDolar
   useEffect(() => {
@@ -150,33 +162,51 @@ const Analysis: React.FC = () => {
 
         const getUSDOrder = (name: string) => {
           const priority = [
-            'USD Tarjeta',
-            'USD Cripto',
+            'USD Oficial',
             'USD Blue',
             'USD Bolsa',
-            'USD Contado con liquidación',
-            'USD Oficial',
-            'USD Mayorista'
+            'USD CCL',
+            'USD Mayorista',
+            'USD Tarjeta',
+            'USD Cripto'
           ];
           const index = priority.findIndex(p => name === p);
           return index === -1 ? 99 : index;
         };
 
         const oficialQuotes = Array.isArray(dolarApiRes.data)
-          ? dolarApiRes.data.map((q: any) => ({
-              name: `USD ${q.nombre}`,
-              buy: typeof q.compra === 'number' ? q.compra : null,
-              sell: typeof q.venta === 'number' ? q.venta : null,
-              spread: (typeof q.compra === 'number' && typeof q.venta === 'number')
-                ? +(q.venta - q.compra).toFixed(2) : null,
-              source: 'DolarAPI',
-              variation: 0
-            }))
+          ? dolarApiRes.data
+              // No filtrar 'tarjeta', incluir todos
+              .map((q: any) => {
+                // Formato explícito para el nombre
+                let usdName = '';
+                if (q.nombre.toLowerCase() === 'oficial') {
+                  usdName = 'USD Oficial';
+                } else if (q.nombre.toLowerCase() === 'contado con liquidación') {
+                  usdName = 'USD CCL';
+                } else if (q.nombre.toLowerCase() === 'tarjeta') {
+                  usdName = 'USD Tarjeta';
+                } else {
+                  usdName = `USD ${q.nombre.charAt(0).toUpperCase() + q.nombre.slice(1)}`;
+                }
+                return {
+                  name: usdName,
+                  buy: typeof q.compra === 'number' ? q.compra : null,
+                  sell: typeof q.venta === 'number' ? q.venta : null,
+                  spread: (typeof q.compra === 'number' && typeof q.venta === 'number')
+                    ? +(q.venta - q.compra).toFixed(2) : null,
+                  source: 'DolarAPI',
+                  variation: 0
+                };
+              })
           : [];
 
         const comparaQuotes = Array.isArray(comparaRes.data)
           ? comparaRes.data.map((q: any) => ({
-              name: q.name.charAt(0).toUpperCase() + q.name.slice(1),
+              name: q.name
+                .split(' ')
+                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .join(' '),
               buy: typeof q.bid === 'number' ? q.bid : null,
               sell: typeof q.ask === 'number' ? q.ask : null,
               spread: (typeof q.bid === 'number' && typeof q.ask === 'number')
@@ -335,42 +365,38 @@ const Analysis: React.FC = () => {
 
   // Main section tabs (with "Rendimientos" button)
   const MainSectionTabs = () => (
-    <div className="flex space-x-2 mb-6">
+    <div className="flex space-x-2 mb-0">
       <button
         onClick={() => setActiveMainSection('quotes')}
-        className={`px-4 py-2 rounded-lg transition-colors ${
+        className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
           activeMainSection === 'quotes'
             ? 'bg-blue-600 text-white'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
         }`}
       >
-        <div className="flex items-center">
-          <TrendingUp size={18} className="mr-2" />
-          Cotizaciones
-        </div>
+        <TrendingUp size={18} className="mr-2" />
+        Cotizaciones
       </button>
       <button
         onClick={() => setActiveMainSection('rates')}
-        className={`px-4 py-2 rounded-lg transition-colors ${
+        className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
           activeMainSection === 'rates'
             ? 'bg-purple-600 text-white'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
         }`}
       >
-        <div className="flex items-center">
-          <ArrowUpRight size={18} className="mr-2" />
-          Rendimientos
-        </div>
+        <ArrowUpRight size={18} className="mr-2" />
+        Rendimientos
       </button>
     </div>
   );
 
   // Quote sections navigation
   const QuoteSectionsNav = () => (
-    <div className="flex space-x-2 mb-6">
+    <div className="flex space-x-2 mb-2">
       <button
         onClick={() => setActiveQuoteSection('dollar')}
-        className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+        className={`flex items-center px-4 py-1.5 rounded-lg transition-colors ${
           activeQuoteSection === 'dollar'
             ? 'bg-green-600 text-white'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -381,7 +407,7 @@ const Analysis: React.FC = () => {
       </button>
       <button
         onClick={() => setActiveQuoteSection('crypto')}
-        className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+        className={`flex items-center px-4 py-1.5 rounded-lg transition-colors ${
           activeQuoteSection === 'crypto'
             ? 'bg-orange-600 text-white'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -392,7 +418,7 @@ const Analysis: React.FC = () => {
       </button>
       <button
         onClick={() => setActiveQuoteSection('pix')}
-        className={`flex items-center px-4 py-2 rounded-lg transition-colors ${
+        className={`flex items-center px-4 py-1.5 rounded-lg transition-colors ${
           activeQuoteSection === 'pix'
             ? 'bg-teal-600 text-white'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -410,7 +436,8 @@ const Analysis: React.FC = () => {
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700"
+      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 cursor-pointer"
+      onClick={() => quote.source && window.open(quote.source, '_blank')}
     >
       <div className="flex justify-between items-start mb-4">
         <div className="flex items-center space-x-2">
@@ -418,8 +445,10 @@ const Analysis: React.FC = () => {
             <img src={quote.logo} alt={quote.name} className="w-7 h-7 rounded-full border border-gray-200 dark:border-gray-700" />
           )}
           <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">{quote.name}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{quote.source}</p>
+            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+              {quote.name.replace(/\s?\((USDT|USDC|BTC|ETH)\)$/i, '')}
+            </h3>
+            {/* Removed the link text rendering for quote.source */}
           </div>
           {quote.is24x7 && (
             <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-semibold">24/7</span>
@@ -452,13 +481,17 @@ const Analysis: React.FC = () => {
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Compra</p>
           <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-            {typeof quote.buy === 'number' ? formatCurrency(quote.buy) : 'N/A'}
+            {typeof quote.buy === 'number'
+              ? formatCurrency(quote.buy)
+              : 'N/A'}
           </p>
         </div>
         <div>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Venta</p>
           <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-            {typeof quote.sell === 'number' ? formatCurrency(quote.sell) : 'N/A'}
+            {typeof quote.sell === 'number'
+              ? formatCurrency(quote.sell)
+              : 'N/A'}
           </p>
         </div>
       </div>
@@ -466,15 +499,14 @@ const Analysis: React.FC = () => {
   );
 
 
-  return (
-    <div className="space-y-6 text-gray-900 dark:text-gray-100">
+return (
+    <div className="space-y-4 text-gray-900 dark:text-gray-100">
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
         <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100 flex items-center space-x-2">
-          <TrendingUp size={24} className="text-blue-600" />
           <span>Análisis</span>
         </h1>
       </motion.div>
@@ -493,32 +525,82 @@ const Analysis: React.FC = () => {
           <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-2 flex items-center space-x-2">
           </h2>
           <QuoteSectionsNav />
+          <div className="mt-20 mb-3">
+            <h3 className="text-2xl font-bold text-gray-800 dark:text-gray-100">
+              {activeQuoteSection === 'dollar' && (
+                selectedCurrency === 'USD' ? 'Dólares' :
+                selectedCurrency === 'Bancos' ? 'Cotizaciones en Bancos' :
+                selectedCurrency === 'Billeteras Virtuales' ? 'Billeteras Virtuales' : ''
+              )}
+              {activeQuoteSection === 'crypto' && (
+                selectedToken ? `Criptomonedas: ${selectedToken}` : 'Criptomonedas'
+              )}
+              {activeQuoteSection === 'pix' && (
+                selectedPixSymbol ? `PIX (${selectedPixSymbol})` : 'Cotizaciones PIX'
+              )}
+            </h3>
+          </div>
 
-          {/* Barra superior de actualización y última actualización */}
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between mb-6">
-            <p className="text-sm text-gray-500 dark:text-gray-400">
+          {/* Barra superior de actualización y última actualización alineada con filtros */}
+          <div className="flex justify-between items-center mb-4">
+            {/* Filtros visuales según sección */}
+            {activeQuoteSection === 'dollar' && (
+              <div className="flex space-x-2">
+                {['USD', 'Bancos', 'Billeteras Virtuales'].map(option => (
+                  <button
+                    key={option}
+                    onClick={() => setSelectedCurrency(option as 'USD' | 'Bancos' | 'Alternativos' | 'Billeteras Virtuales')}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      selectedCurrency === option
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            )}
+            {activeQuoteSection === 'crypto' && (
+              <div className="flex space-x-2">
+                {['USDT', 'USDC', 'BTC', 'ETH'].map(token => (
+                  <button
+                    key={token}
+                    onClick={() => setSelectedToken(token === selectedToken ? null : token)}
+                    className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                      selectedToken === token
+                        ? 'bg-blue-600 text-white'
+                        : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    }`}
+                  >
+                    {token}
+                  </button>
+                ))}
+              </div>
+            )}
+            {activeQuoteSection === 'pix' && (() => {
+              const uniquePixSymbols = [...new Set(pixQuotes.map(q => q.name.match(/\(([^)]+)\)/)?.[1]))].filter(Boolean);
+              return (
+                <div className="flex space-x-2">
+                  {uniquePixSymbols.map(symbol => (
+                    <button
+                      key={symbol}
+                      onClick={() => setSelectedPixSymbol(symbol === selectedPixSymbol ? null : symbol)}
+                      className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
+                        selectedPixSymbol === symbol
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
+                      }`}
+                    >
+                      {symbol}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-right ml-4 flex-1">
               Última actualización: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
             </p>
-            <button
-              onClick={() => {
-                if (activeQuoteSection === 'dollar') {
-                  // Refetch dollar quotes
-                  // Se fuerza el fetch ejecutando el mismo código que en el useEffect
-                  // Pero mejor definir funciones locales para poder llamarlas aquí
-                  // Así que las sacamos de los useEffect y las ponemos arriba
-                  fetchDollarQuotes();
-                }
-                if (activeQuoteSection === 'crypto') {
-                  fetchCryptoQuotes();
-                }
-                if (activeQuoteSection === 'pix') {
-                  fetchPixQuotes();
-                }
-              }}
-              className="mt-2 md:mt-0 px-4 py-2 text-sm font-medium rounded-lg border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
-            >
-              🔄 Actualizar datos
-            </button>
           </div>
 
           {/* Mejores precios para cripto con token seleccionado o dólar con Bancos/Billeteras */}
@@ -542,7 +624,7 @@ const Analysis: React.FC = () => {
             const bestSpread = quotes.reduce((a, b) => (b.spread !== null && (a.spread === null || b.spread < a.spread) ? b : a), quotes[0]);
 
             const BestCard = ({ title, value, entity }: { title: string, value: string, entity: Quote }) => (
-              <div className="bg-gray-50 dark:bg-gray-700 rounded-xl p-4 border border-gray-200 dark:border-gray-600 flex-1">
+              <div className="rounded-xl p-4 border flex-1 bg-blue-50 dark:bg-blue-900 border-blue-300 dark:border-blue-600">
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{title}</p>
                 <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">{value}</p>
                 <div className="flex items-center space-x-2">
@@ -572,47 +654,15 @@ const Analysis: React.FC = () => {
             <>
               {/* Dólar visual filter */}
               {activeQuoteSection === 'dollar' && (
-                <>
-                  <div className="flex space-x-2 mb-4">
-                    {['USD', 'Bancos', 'Billeteras Virtuales'].map(option => (
-                      <button
-                        key={option}
-                        onClick={() => setSelectedCurrency(option as 'USD' | 'Bancos' | 'Alternativos' | 'Billeteras Virtuales')}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          selectedCurrency === option
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        {option}
-                      </button>
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {filteredDollarQuotes.map((quote, index) => (
-                      <QuoteCard key={`dollar-${index}`} quote={quote} />
-                    ))}
-                  </div>
-                </>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {filteredDollarQuotes.map((quote, index) => (
+                    <QuoteCard key={`dollar-${index}`} quote={quote} />
+                  ))}
+                </div>
               )}
               {/* Filtro visual de tokens para cripto */}
               {activeQuoteSection === 'crypto' && (
                 <>
-                  <div className="flex space-x-2 mb-4">
-                    {['USDT', 'USDC', 'BTC', 'ETH'].map(token => (
-                      <button
-                        key={token}
-                        onClick={() => setSelectedToken(token === selectedToken ? null : token)}
-                        className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                          selectedToken === token
-                            ? 'bg-blue-600 text-white'
-                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                        }`}
-                      >
-                        {token}
-                      </button>
-                    ))}
-                  </div>
                   {(() => {
                     // Agrupa las cotizaciones por token (extraído del nombre)
                     const groupedCryptoQuotes = cryptoQuotes.reduce((acc: { [token: string]: Quote[] }, quote) => {
@@ -644,45 +694,22 @@ const Analysis: React.FC = () => {
                 </>
               )}
               {activeQuoteSection === 'pix' && (
-                <>
-                  {/* Filtro visual de símbolos para PIX */}
-                  {(() => {
-                    const uniquePixSymbols = [...new Set(pixQuotes.map(q => q.name.match(/\(([^)]+)\)/)?.[1]))].filter(Boolean);
-                    return (
-                      <div className="flex space-x-2 mb-4">
-                        {uniquePixSymbols.map(symbol => (
-                          <button
-                            key={symbol}
-                            onClick={() => setSelectedPixSymbol(symbol === selectedPixSymbol ? null : symbol)}
-                            className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-                              selectedPixSymbol === symbol
-                                ? 'bg-purple-600 text-white'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                          >
-                            {symbol}
-                          </button>
-                        ))}
-                      </div>
-                    );
-                  })()}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {pixQuotes
-                      .filter(q => {
-                        if (!selectedPixSymbol) return true;
-                        const match = q.name.match(/\(([^)]+)\)/);
-                        return match?.[1] === selectedPixSymbol;
-                      })
-                      .map((quote, index) => (
-                        <QuoteCard key={`pix-${index}`} quote={quote} />
-                      ))}
-                    {pixQuotes.length === 0 && !loading && (
-                      <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
-                        No hay cotizaciones PIX disponibles en este momento
-                      </div>
-                    )}
-                  </div>
-                </>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {pixQuotes
+                    .filter(q => {
+                      if (!selectedPixSymbol) return true;
+                      const match = q.name.match(/\(([^)]+)\)/);
+                      return match?.[1] === selectedPixSymbol;
+                    })
+                    .map((quote, index) => (
+                      <QuoteCard key={`pix-${index}`} quote={quote} />
+                    ))}
+                  {pixQuotes.length === 0 && !loading && (
+                    <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">
+                      No hay cotizaciones PIX disponibles en este momento
+                    </div>
+                  )}
+                </div>
               )}
             </>
           )}
