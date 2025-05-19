@@ -665,6 +665,13 @@ const Simulator: React.FC = () => {
                   />
                 </div>
               )}
+              {simulationType === 'crypto' && (
+                <div className="p-3 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-xl shadow-sm">
+                  <p className="text-sm text-yellow-700 dark:text-yellow-200">
+                    Este cálculo no contempla variaciones del mercado. Los rendimientos en cripto pueden variar significativamente.
+                  </p>
+                </div>
+              )}
               <button
                 onClick={calculateResults}
                 className={`w-full py-2.5 px-5 text-base font-semibold ${
@@ -680,13 +687,6 @@ const Simulator: React.FC = () => {
                 <Calculator size={18} className="mr-2" />
                 Calcular
               </button>
-              {simulationType === 'crypto' && (
-                <div className="p-3 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-xl shadow-sm">
-                  <p className="text-sm text-yellow-700 dark:text-yellow-200">
-                    Este cálculo no contempla variaciones del mercado. Los rendimientos en cripto pueden variar significativamente.
-                  </p>
-                </div>
-              )}
             </div>
             {/* Results */}
             <div className={`space-y-6 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-md transition-all duration-300 ${
