@@ -1,5 +1,3 @@
-// Página para administrar la cartera personal
-
 import React, { useState } from 'react';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -16,50 +14,46 @@ const Portfolio: React.FC = () => {
   const [message, setMessage] = useState('');
   const [investments, setInvestments] = useState<any[]>([]);
   const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage('');
     setMessageType('');
+    setIsLoading(true);
 
-    if (!ticker || !name || quantity <= 0 || purchasePrice <= 0 || !purchaseDate) {
-      setMessage('Por favor complete todos los campos correctamente.');
-      setMessageType('error');
-      return;
-    }
+    try {
+      if (!ticker || !name || quantity <= 0 || purchasePrice <= 0 || !purchaseDate) {
+        throw new Error('Por favor complete todos los campos correctamente.');
+      }
 
-    if (!user?.id) {
-      setMessage('Usuario no identificado.');
-      setMessageType('error');
-      return;
-    }
+      if (!user?.id) {
+        throw new Error('Usuario no identificado.');
+      }
 
-    const { data, error } = await supabase
-      .from('investments')
-      .insert([
-        {
-          user_id: user.id,
-          ticker,
-          name,
-          type: 'CEDEAR',
-          quantity,
-          purchase_price: purchasePrice,
-          current_price: purchasePrice,
-          purchase_date: purchaseDate,
-          currency: 'ARS',
-          is_favorite: false,
-        },
-      ])
-      .select('*')
-      .single();
+      const { data, error } = await supabase
+        .from('investments')
+        .insert([
+          {
+            user_id: user.id,
+            ticker,
+            name,
+            type: 'CEDEAR',
+            quantity,
+            purchase_price: purchasePrice,
+            current_price: purchasePrice,
+            purchase_date: purchaseDate,
+            currency: 'ARS',
+            is_favorite: false,
+          },
+        ])
+        .select('*')
+        .single();
 
-    if (error) {
-      console.error('Error Supabase:', error);
-      setMessage(
-        `Error al guardar la inversión: ${error.message || JSON.stringify(error)}`
-      );
-      setMessageType('error');
-    } else if (data) {
+      if (error) {
+        throw error;
+      }
+
       setMessage('Inversión guardada exitosamente.');
       setMessageType('success');
       setTicker('');
@@ -68,22 +62,39 @@ const Portfolio: React.FC = () => {
       setPurchasePrice(0);
       setPurchaseDate(new Date().toISOString().split('T')[0]);
       setInvestments((prev) => [data, ...prev]);
+    } catch (error: any) {
+      console.error('Error:', error);
+      setMessage(
+        error.message || 'Ha ocurrido un error al guardar la inversión. Por favor, inténtelo de nuevo.'
+      );
+      setMessageType('error');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const fetchInvestments = async () => {
     if (!user?.id) return;
-    const { data, error } = await supabase
-      .from('investments')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('purchase_date', { ascending: false });
-    if (error) {
+    
+    try {
+      setIsLoading(true);
+      const { data, error } = await supabase
+        .from('investments')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('purchase_date', { ascending: false });
+
+      if (error) {
+        throw error;
+      }
+
+      setInvestments(data || []);
+    } catch (error: any) {
       console.error('Error fetching investments:', error);
       setMessage('Error al cargar las inversiones.');
       setMessageType('error');
-    } else {
-      setInvestments(data || []);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -111,6 +122,7 @@ const Portfolio: React.FC = () => {
             value={ticker}
             onChange={(e) => setTicker(e.target.value)}
             className="w-full border border-gray-300 px-4 py-2 rounded-lg bg-white placeholder-gray-500 text-gray-800"
+            disabled={isLoading}
           />
           <input
             type="text"
@@ -118,6 +130,7 @@ const Portfolio: React.FC = () => {
             value={name}
             onChange={(e) => setName(e.target.value)}
             className="w-full border border-gray-300 px-4 py-2 rounded-lg bg-white placeholder-gray-500 text-gray-800"
+            disabled={isLoading}
           />
           <input
             type="number"
@@ -125,6 +138,7 @@ const Portfolio: React.FC = () => {
             value={quantity}
             onChange={(e) => setQuantity(parseFloat(e.target.value))}
             className="w-full border border-gray-300 px-4 py-2 rounded-lg bg-white placeholder-gray-500 text-gray-800"
+            disabled={isLoading}
           />
           <input
             type="number"
@@ -132,18 +146,23 @@ const Portfolio: React.FC = () => {
             value={purchasePrice}
             onChange={(e) => setPurchasePrice(parseFloat(e.target.value))}
             className="w-full border border-gray-300 px-4 py-2 rounded-lg bg-white placeholder-gray-500 text-gray-800"
+            disabled={isLoading}
           />
           <input
             type="date"
             value={purchaseDate}
             onChange={(e) => setPurchaseDate(e.target.value)}
             className="w-full border border-gray-300 px-4 py-2 rounded-lg bg-white placeholder-gray-500 text-gray-800"
+            disabled={isLoading}
           />
           <button
             type="submit"
-            className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition-colors font-semibold"
+            className={`w-full bg-blue-600 text-white py-2 rounded-lg transition-colors font-semibold ${
+              isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:bg-blue-700'
+            }`}
+            disabled={isLoading}
           >
-            Guardar inversión
+            {isLoading ? 'Guardando...' : 'Guardar inversión'}
           </button>
         </form>
       </div>
@@ -151,28 +170,30 @@ const Portfolio: React.FC = () => {
       {investments.length > 0 && (
         <div className="w-full max-w-4xl">
           <h2 className="text-lg font-semibold mb-3 text-gray-800">Inversiones cargadas</h2>
-          <table className="w-full text-sm border border-gray-200">
-            <thead>
-              <tr className="bg-gray-100 text-left">
-                <th className="px-4 py-2 border-b">Ticker</th>
-                <th className="px-4 py-2 border-b">Nombre</th>
-                <th className="px-4 py-2 border-b">Cantidad</th>
-                <th className="px-4 py-2 border-b">Precio</th>
-                <th className="px-4 py-2 border-b">Fecha</th>
-              </tr>
-            </thead>
-            <tbody>
-              {investments.map((inv) => (
-                <tr key={inv.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 border-b">{inv.ticker}</td>
-                  <td className="px-4 py-2 border-b">{inv.name}</td>
-                  <td className="px-4 py-2 border-b">{inv.quantity}</td>
-                  <td className="px-4 py-2 border-b">${inv.purchase_price}</td>
-                  <td className="px-4 py-2 border-b">{inv.purchase_date}</td>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border border-gray-200">
+              <thead>
+                <tr className="bg-gray-100 text-left">
+                  <th className="px-4 py-2 border-b">Ticker</th>
+                  <th className="px-4 py-2 border-b">Nombre</th>
+                  <th className="px-4 py-2 border-b">Cantidad</th>
+                  <th className="px-4 py-2 border-b">Precio</th>
+                  <th className="px-4 py-2 border-b">Fecha</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {investments.map((inv) => (
+                  <tr key={inv.id} className="hover:bg-gray-50">
+                    <td className="px-4 py-2 border-b">{inv.ticker}</td>
+                    <td className="px-4 py-2 border-b">{inv.name}</td>
+                    <td className="px-4 py-2 border-b">{inv.quantity}</td>
+                    <td className="px-4 py-2 border-b">${inv.purchase_price}</td>
+                    <td className="px-4 py-2 border-b">{inv.purchase_date}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </div>
