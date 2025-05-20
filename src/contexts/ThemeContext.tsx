@@ -1,4 +1,6 @@
-// Contexto para controlar el modo claro u oscuro
+// Contexto para controlar el modo claro u oscuro.
+// Guarda la preferencia del usuario y escucha los
+// cambios del sistema operativo.
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 

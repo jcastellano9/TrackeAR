@@ -1,5 +1,6 @@
-import { supabase } from "./supabase"; // Asegúrate que tu cliente está exportado así
+import { supabase } from './supabase'; // Cliente configurado de Supabase
 
+// Obtiene el perfil del usuario autenticado o lo crea si no existe
 export async function getOrCreateUserProfile() {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) throw userError ?? new Error("No user authenticated");

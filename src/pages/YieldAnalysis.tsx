@@ -58,7 +58,6 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
         const plazosData = await plazosRes.json();
         const criptoData = await criptoRes.json();
 
-        console.log('Billeteras recibidas:', billeterasData);
 
         setBilleteras(billeterasData);
         setPlazosFijos(plazosData);
@@ -124,8 +123,6 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
   };
 
   // Barra de navegación para cambiar de sección
-  // (agregado justo antes del return)
-  // eslint-disable-next-line
   return (
     <>
       <div className="flex justify-between items-center flex-wrap gap-4 mb-4">

@@ -1,4 +1,6 @@
-// Contexto para manejar la autenticación de usuarios
+// Contexto para manejar la autenticación de usuarios.
+// Centraliza las funciones de inicio de sesión y
+// suscripción al estado de autenticación.
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
