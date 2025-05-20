@@ -123,8 +123,6 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
   };
 
   // Barra de navegación para cambiar de sección
-  // (agregado justo antes del return)
-  // eslint-disable-next-line
   return (
     <>
       <div className="flex justify-between items-center flex-wrap gap-4 mb-4">

@@ -15,6 +15,7 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ResetPassword from './pages/auth/ResetPassword';
 
+// Envuelve rutas que requieren sesión activa
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
   
