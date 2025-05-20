@@ -107,14 +107,14 @@ const Dashboard: React.FC = () => {
     datasets: [{
       data: [30, 40, 30], // Distribución de ejemplo
       backgroundColor: [
-        '#F97316', // Cripto - naranja intenso
+        '#F97316', // Cripto
         '#A855F7', // CEDEARs
-        '#10B981'  // Acciones
+        '#0EA5E9'  // Acciones (nuevo - celeste)
       ],
       borderColor: [
-        '#EA580C', // Borde naranja oscuro
+        '#EA580C',
         '#9333EA',
-        '#059669'
+        '#0284C7' // nuevo - celeste oscuro
       ],
       borderWidth: 1,
     }]
@@ -147,8 +147,8 @@ const Dashboard: React.FC = () => {
         label: 'Acciones',
         data: [50000, 57000, 54000, 65000, 73000, 82000], // Ejemplo
         fill: true,
-        backgroundColor: 'rgba(16, 185, 129, 0.2)', // verde
-        borderColor: '#10B981',
+        backgroundColor: 'rgba(14, 165, 233, 0.2)', // celeste claro
+        borderColor: '#0EA5E9', // celeste fuerte
         tension: 0.3
       }
     ]
@@ -186,8 +186,8 @@ const Dashboard: React.FC = () => {
       {
         label: 'Acciones',
         data: [46000, 47000, 51000, 52000, 53000, 54000, 50000, 57000, 54000, 65000, 73000, 82000],
-        backgroundColor: 'rgba(16, 185, 129, 0.2)',
-        borderColor: '#10B981',
+        backgroundColor: 'rgba(14, 165, 233, 0.2)', // celeste claro
+        borderColor: '#0EA5E9', // celeste fuerte
         tension: 0.3,
         fill: true
       }

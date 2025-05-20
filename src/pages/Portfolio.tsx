@@ -1,188 +1,481 @@
-<<<<<<< HEAD
-// Página para administrar la cartera personal
-
-=======
->>>>>>> 37efc5ccefe3ba329d1627637aa1d818c470622c
 import React, { useState, useEffect } from 'react';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';
-import { Search, Plus, Download, Star, Pencil, Trash2, ArrowUpRight, ArrowDownRight } from 'lucide-react';
+import { motion } from 'framer-motion';
+import { Search, Plus, TrendingUp, TrendingDown, Loader, X, Check, AlertCircle, Calendar, DollarSign, Edit2, Trash, Heart, Download } from 'lucide-react';
 
-type Investment = {
+interface Investment {
   id: string;
   ticker: string;
   name: string;
-  type: 'CEDEAR' | 'CRYPTO' | 'STOCK';
-  current_price: number;
-  purchase_price: number;
-  ratio: string | null;
+  type: 'Cripto' | 'Acción' | 'CEDEAR';
   quantity: number;
-  purchase_date: string;
-  currency: 'ARS' | 'USD';
-  is_favorite: boolean;
-};
+  purchasePrice: number;
+  currentPrice: number;
+  allocation: number;
+  purchaseDate: string;
+  currency: 'USD' | 'ARS';
+  isFavorite?: boolean;
+  ratio?: string | null;
+}
+
+interface NewInvestment {
+  ticker: string;
+  name: string;
+  type: 'Cripto' | 'Acción' | 'CEDEAR';
+  quantity: number;
+  purchasePrice: number;
+  purchaseDate: string;
+  currency: 'USD' | 'ARS';
+}
+
+interface PredefinedAsset {
+  ticker: string;
+  name: string;
+  type: 'Cripto' | 'Acción' | 'CEDEAR';
+  logo: string;
+}
 
 const Portfolio: React.FC = () => {
   const supabase = useSupabase();
   const { user } = useAuth();
 
-<<<<<<< HEAD
-  const [nombre, setNombre] = useState('');
-  const [numero, setNumero] = useState('');
-  const [message, setMessage] = useState('');
-  const [registros, setRegistros] = useState<any[]>([]);
-  const [messageType, setMessageType] = useState<'success' | 'error' | ''>('');
+  const [investments, setInvestments] = useState<Investment[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [assetSearchTerm, setAssetSearchTerm] = useState('');
+  const [selectedAsset, setSelectedAsset] = useState<PredefinedAsset | null>(null);
+  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
+  const [fetchingPrice, setFetchingPrice] = useState(false);
+  const [cclPrice, setCclPrice] = useState<number | null>(null);
+  // Nuevo estado para filtro por tipo de activo
+  const [activeTypeFilter, setActiveTypeFilter] = useState<'Todos' | 'CEDEAR' | 'Cripto' | 'Acción'>('Todos');
+  // Estado para unificar transacciones repetidas
+  const [mergeTransactions, setMergeTransactions] = useState(false);
+  // Estado para alternar visualización entre ARS y USD
+  const [showInARS, setShowInARS] = useState(true);
+  // Estado para orden de la tabla (ascendente/descendente por criterio)
+  const [sortBy, setSortBy] = useState<
+    'tickerAZ' | 'tickerZA' |
+    'gananciaPorcentajeAsc' | 'gananciaPorcentajeDesc' |
+    'gananciaValorAsc' | 'gananciaValorDesc' |
+    'tenenciaAsc' | 'tenenciaDesc' |
+    'fechaAsc' | 'fechaDesc'
+  >('fechaDesc');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // New investment form state
+  const [newInvestment, setNewInvestment] = useState<NewInvestment>({
+    ticker: '',
+    name: '',
+    type: 'CEDEAR',
+    quantity: 0,
+    purchasePrice: 0,
+    purchaseDate: new Date().toISOString().split('T')[0],
+    currency: 'ARS'
+  });
+
+  // Predefined assets state (dynamic)
+  const [predefinedAssets, setPredefinedAssets] = useState<PredefinedAsset[]>([]);
+  // Fetch CCL price separately
+  useEffect(() => {
+    const fetchCCL = async () => {
+      try {
+        const res = await fetch('https://dolarapi.com/v1/dolares');
+        const data = await res.json();
+        const ccl = data.find((d: any) => d.casa === 'contadoconliqui');
+        if (ccl && ccl.venta) {
+          setCclPrice(Number(ccl.venta));
+        }
+      } catch (err) {
+        console.error('No se pudo obtener el precio CCL.', err);
+      }
+    };
+    fetchCCL();
+  }, []);
+
+  useEffect(() => {
+    const fetchAssets = async () => {
+      try {
+        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd');
+        const data = await res.json();
+        const formattedAssets: PredefinedAsset[] = data.map((coin: any) => ({
+          ticker: coin.symbol.toUpperCase(),
+          name: coin.name,
+          type: 'Cripto',
+          logo: coin.image
+        }));
+        // CEDEARs y Acciones manuales con rutas reales de íconos
+        const cedears: PredefinedAsset[] = [
+          {
+            ticker: 'AAPL',
+            name: 'Apple Inc.',
+            type: 'CEDEAR',
+            logo: `https://icons.com.ar/icons/cedears/AAPL.png`
+          },
+          {
+            ticker: 'MELI',
+            name: 'MercadoLibre Inc.',
+            type: 'CEDEAR',
+            logo: `https://icons.com.ar/icons/cedears/MELI.png`
+          }
+        ];
+        // Agregar acciones manualmente si se desea
+        const acciones: PredefinedAsset[] = [
+          {
+            ticker: 'GGAL',
+            name: 'Grupo Financiero Galicia',
+            type: 'Acción',
+            logo: `https://icons.com.ar/icons/acciones/GGAL.png`
+          },
+          {
+            ticker: 'YPFD',
+            name: 'YPF S.A.',
+            type: 'Acción',
+            logo: `https://icons.com.ar/icons/acciones/YPFD.png`
+          }
+        ];
+        setPredefinedAssets([...formattedAssets, ...cedears, ...acciones]);
+      } catch (error) {
+        console.error('Error fetching crypto assets', error);
+      }
+    };
+    fetchAssets();
+  }, []);
+
+  useEffect(() => {
+    const fetchInvestments = async () => {
+      if (!user || !user.id) {
+        console.warn('Usuario no autenticado o user.id es null');
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('investments')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        // Insertar 5 inversiones mock (2 CEDEARs, 2 Cripto, 1 Acción)
+        const mockedInvestments: Investment[] = [
+          {
+            id: 'mock-btc',
+            ticker: 'BTC',
+            name: 'Bitcoin',
+            type: 'Cripto',
+            quantity: 0.05,
+            purchasePrice: 30000,
+            currentPrice: 35000,
+            allocation: 20,
+            purchaseDate: '2024-02-14',
+            currency: 'USD',
+            isFavorite: true
+          },
+          {
+            id: 'mock-eth',
+            ticker: 'ETH',
+            name: 'Ethereum',
+            type: 'Cripto',
+            quantity: 0.2,
+            purchasePrice: 2000,
+            currentPrice: 2200,
+            allocation: 10,
+            purchaseDate: '2024-03-01',
+            currency: 'USD'
+          },
+          {
+            id: 'mock-aapl',
+            ticker: 'AAPL',
+            name: 'Apple Inc.',
+            type: 'CEDEAR',
+            quantity: 3,
+            purchasePrice: 1500,
+            currentPrice: 1800,
+            allocation: 25,
+            purchaseDate: '2024-02-10',
+            currency: 'ARS'
+          },
+          {
+            id: 'mock-meli',
+            ticker: 'MELI',
+            name: 'MercadoLibre Inc.',
+            type: 'CEDEAR',
+            quantity: 2,
+            purchasePrice: 4000,
+            currentPrice: 4700,
+            allocation: 25,
+            purchaseDate: '2024-03-02',
+            currency: 'ARS'
+          },
+          {
+            id: 'mock-ggal',
+            ticker: 'GGAL',
+            name: 'Grupo Financiero Galicia',
+            type: 'Acción',
+            quantity: 5,
+            purchasePrice: 500,
+            currentPrice: 540,
+            allocation: 20,
+            purchaseDate: '2024-01-30',
+            currency: 'ARS'
+          },
+          {
+            id: 'mock-btc-2',
+            ticker: 'BTC',
+            name: 'Bitcoin',
+            type: 'Cripto',
+            quantity: 0.03,
+            purchasePrice: 30000,
+            currentPrice: 35000,
+            allocation: 10,
+            purchaseDate: '2024-03-01',
+            currency: 'USD'
+          },
+          {
+            id: 'mock-btc-3',
+            ticker: 'BTC',
+            name: 'Bitcoin',
+            type: 'Cripto',
+            quantity: 0.02,
+            purchasePrice: 30000,
+            currentPrice: 35000,
+            allocation: 5,
+            purchaseDate: '2024-03-10',
+            currency: 'USD'
+          },
+          {
+            id: 'mock-eth-2',
+            ticker: 'ETH',
+            name: 'Ethereum',
+            type: 'Cripto',
+            quantity: 0.1,
+            purchasePrice: 2000,
+            currentPrice: 2200,
+            allocation: 5,
+            purchaseDate: '2024-03-15',
+            currency: 'USD'
+          },
+          {
+            id: 'mock-sol',
+            ticker: 'SOL',
+            name: 'Solana',
+            type: 'Cripto',
+            quantity: 1.5,
+            purchasePrice: 90,
+            currentPrice: 120,
+            allocation: 8,
+            purchaseDate: '2024-03-20',
+            currency: 'USD'
+          }
+        ];
+        data.unshift(...mockedInvestments);
+
+        setInvestments(data as Investment[]);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching investments:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchInvestments();
+  }, [user]);
+  // Toggle favorite
+  const toggleFavorite = (id: string) => {
+    setInvestments(prev =>
+        prev.map(inv =>
+            inv.id === id ? { ...inv, isFavorite: !inv.isFavorite } : inv
+        )
+    );
+  };
+
+  const handleAssetSelect = async (asset: PredefinedAsset) => {
+    setFetchingPrice(true);
+    setNewInvestment(prev => ({
+      ...prev,
+      ticker: asset.ticker,
+      name: asset.name,
+      type: asset.type,
+      currency: asset.type === 'Cripto' ? 'USD' : 'ARS'
+    }));
+
+    try {
+      let price = 0;
+      if (asset.type === 'Cripto') {
+        // Usar el ticker como identificador para CoinGecko (en minúsculas)
+        const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${asset.ticker.toLowerCase()}&vs_currencies=usd`);
+        const data = await res.json();
+        price = data[asset.ticker.toLowerCase()]?.usd || 0;
+        // No multiplicar por CCL para Cripto
+      } else if (asset.type === 'CEDEAR' || asset.type === 'Acción') {
+        // Precio simulado para activos no cripto
+        price = Math.random() * 5000;
+        try {
+          const cclRes = await fetch('https://dolarapi.com/v1/dolares');
+          const cclData = await cclRes.json();
+          const cclPrice = cclData.find((d: any) => d.casa === 'contadoconliqui')?.venta || 1100;
+          price = price * cclPrice;
+        } catch (err) {
+          console.error('No se pudo obtener el precio CCL. Usando valor por defecto.', err);
+        }
+      }
+
+      setCurrentPrice(price);
+      setNewInvestment(prev => ({
+        ...prev,
+        purchasePrice: price
+      }));
+    } catch (error) {
+      console.error('Error fetching price:', error);
+    } finally {
+      setFetchingPrice(false);
+    }
+  };
+
+  const handleAddInvestment = async (e: React.FormEvent) => {
     e.preventDefault();
-    setMessage('');
-    setMessageType('');
+    setError(null);
+    setSuccess(null);
 
-    if (!nombre || !numero) {
-      setMessage('Por favor complete ambos campos.');
-      setMessageType('error');
+    // Normalizar los valores de entrada para evitar comas como separador decimal o de miles
+    newInvestment.quantity = Number(newInvestment.quantity.toString().replace(/,/g, ''));
+    newInvestment.purchasePrice = Number(newInvestment.purchasePrice.toString().replace(/,/g, ''));
+
+    // Validate form
+    if (!newInvestment.ticker || !newInvestment.name || !newInvestment.quantity || !newInvestment.purchasePrice || !newInvestment.purchaseDate) {
+      setError('Por favor complete todos los campos');
       return;
     }
-    if (!user?.id) {
-      setMessage('Usuario no identificado.');
-      setMessageType('error');
+
+    if (newInvestment.quantity <= 0) {
+      setError('La cantidad debe ser mayor a 0');
       return;
     }
-    const { data, error } = await supabase
-      .from('registros')
-      .insert([
+
+    if (newInvestment.purchasePrice <= 0) {
+      console.warn("Precio de compra inválido:", newInvestment.purchasePrice);
+      setError('El precio de compra debe ser mayor a 0');
+      return;
+    }
+
+    if (!user || !user.id) {
+      console.warn('Usuario no autenticado o user.id es null');
+      return;
+    }
+
+    // Debug: log intent to add investment
+    console.log("Intentando agregar inversión:", {
+      userId: user?.id,
+      ...newInvestment
+    });
+
+    // Convertir fecha al formato ISO (YYYY-MM-DD)
+    const formattedDate = new Date(newInvestment.purchaseDate).toISOString().split('T')[0];
+
+    try {
+      const { data, error } = await supabase.from('investments').insert([
         {
           user_id: user.id,
-          nombre,
-          numero,
-        },
-      ])
-      .select('*')
-      .single();
-    if (error) {
-      setMessage(`Error al guardar: ${error.message || JSON.stringify(error)}`);
-      setMessageType('error');
-    } else if (data) {
-      setMessage('Guardado exitosamente.');
-      setMessageType('success');
-      setNombre('');
-      setNumero('');
-      setRegistros((prev) => [data, ...prev]);
+          ticker: newInvestment.ticker,
+          name: newInvestment.name,
+          type: newInvestment.type,
+          quantity: newInvestment.quantity,
+          purchase_price: newInvestment.purchasePrice,
+          purchase_date: formattedDate,
+          currency: newInvestment.currency,
+          is_favorite: false
+        }
+      ]);
+      console.log("Respuesta de Supabase:", { data, error });
+
+      if (error) {
+        console.error("Supabase insert error:", error);
+        setError(error.message);
+        return;
+      }
+
+      setSuccess('Inversión agregada');
+
+      // Reset form
+      setNewInvestment({
+        ticker: '',
+        name: '',
+        type: 'CEDEAR',
+        quantity: 0,
+        purchasePrice: 0,
+        purchaseDate: new Date().toISOString().split('T')[0],
+        currency: 'ARS'
+      });
+      setCurrentPrice(null);
+
+      // Refetch investments from Supabase
+      const fetchInvestments = async () => {
+        if (!user || !user.id) {
+          console.warn('Usuario no autenticado o user.id es null');
+          return;
+        }
+        try {
+          const { data, error } = await supabase
+              .from('investments')
+              .select('*')
+              .eq('user_id', user.id)
+              .order('created_at', { ascending: false });
+          if (error) throw error;
+          setInvestments(data as Investment[]);
+        } catch (error) {
+          console.error('Error fetching investments after add:', error);
+        }
+      };
+      await fetchInvestments();
+
+      // Close modal after a short delay
+      setTimeout(() => {
+        setShowAddModal(false);
+        setSuccess(null);
+      }, 1500);
+
+    } catch (error) {
+      console.error('Error al agregar la inversión:', error);
+      setError('Error al agregar la inversión');
     }
   };
 
-  const fetchRegistros = async () => {
-    if (!user?.id) return;
-    const { data, error } = await supabase
-      .from('registros')
-      .select('*')
-      .eq('user_id', user.id)
-      .order('id', { ascending: false });
-    if (error) {
-      setMessage('Error al cargar los registros.');
-      setMessageType('error');
-    } else {
-      setRegistros(data || []);
-    }
+  const filteredAssets = predefinedAssets.filter(
+      (asset) =>
+          asset.type === newInvestment.type &&
+          (asset.ticker.toLowerCase().includes(assetSearchTerm.toLowerCase()) ||
+              asset.name.toLowerCase().includes(assetSearchTerm.toLowerCase()))
+  );
+  // Edit investment
+  const handleEditInvestment = (investment: Investment) => {
+    const confirmEdit = window.confirm('✏️ ¿Estás seguro que deseas editar esta inversión? Podrás aplicar o cancelar los cambios.');
+    if (!confirmEdit) return;
+    setNewInvestment({
+      ticker: investment.ticker,
+      name: investment.name,
+      type: investment.type,
+      quantity: investment.quantity,
+      purchasePrice: investment.purchasePrice,
+      purchaseDate: investment.purchaseDate,
+      currency: investment.currency,
+    });
+    setShowAddModal(true);
   };
 
-  useEffect(() => {
-    fetchRegistros();
-=======
-  // State for investments and filters
-  const [investments, setInvestments] = useState<Investment[]>([]);
-  const [filteredInvestments, setFilteredInvestments] = useState<Investment[]>([]);
-  const [activeFilter, setActiveFilter] = useState<'TODOS' | 'CEDEAR' | 'CRYPTO' | 'STOCK'>('TODOS');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [showInUSD, setShowInUSD] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  // Portfolio stats
-  const [totalValue, setTotalValue] = useState(0);
-  const [totalValueUSD, setTotalValueUSD] = useState(0);
-
-  // Fetch investments
-  const fetchInvestments = async () => {
-    if (!user?.id) return;
-    
-    try {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from('investments')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('is_favorite', { ascending: false })
-        .order('purchase_date', { ascending: false });
-
-      if (error) throw error;
-
-      setInvestments(data || []);
-      setFilteredInvestments(data || []);
-      
-      // Calculate totals
-      const totalARS = data?.reduce((acc, inv) => acc + (inv.current_price * inv.quantity), 0) || 0;
-      setTotalValue(totalARS);
-      // TODO: Implement real USD conversion
-      setTotalValueUSD(totalARS / 1000);
-      
-    } catch (error: any) {
-      console.error('Error fetching investments:', error);
-      setError('Error al cargar las inversiones');
-    } finally {
-      setIsLoading(false);
-    }
+  // Delete investment
+  const handleDeleteInvestment = (id: string) => {
+    const confirmDelete = window.confirm('🗑️ ¿Seguro que deseas eliminar esta inversión? Esta acción no se puede deshacer.');
+    if (!confirmDelete) return;
+    setInvestments((prev) => prev.filter((inv) => inv.id !== id));
   };
 
-  // Filter investments based on type and search term
-  useEffect(() => {
-    let filtered = [...investments];
-    
-    if (activeFilter !== 'TODOS') {
-      filtered = filtered.filter(inv => inv.type === activeFilter);
-    }
-    
-    if (searchTerm) {
-      filtered = filtered.filter(inv => 
-        inv.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        inv.name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-    
-    setFilteredInvestments(filtered);
-  }, [activeFilter, searchTerm, investments]);
-
-  useEffect(() => {
-    fetchInvestments();
->>>>>>> 37efc5ccefe3ba329d1627637aa1d818c470622c
-  }, [user]);
-
-  // Format currency
-  const formatCurrency = (value: number, currency: 'ARS' | 'USD' = 'ARS') => {
-    return new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency,
-      maximumFractionDigits: 2
-    }).format(value);
-  };
-
-  // Calculate change values
-  const calculateChange = (current: number, purchase: number) => {
-    const absoluteChange = current - purchase;
-    const percentageChange = ((current - purchase) / purchase) * 100;
-    return {
-      absolute: absoluteChange,
-      percentage: percentageChange
-    };
-  };
-
-  // Calculate allocation percentage
-  const calculateAllocation = (investmentValue: number) => {
-    return (investmentValue / totalValue) * 100;
-  };
-
-  // Export to CSV
-  const exportToCSV = () => {
+  // Export CSV
+  const handleExportCSV = () => {
     const headers = [
       'Ticker',
       'Nombre',
@@ -194,276 +487,1000 @@ const Portfolio: React.FC = () => {
       'Ratio',
       'Cantidad',
       'Tenencia',
-      'Fecha Compra'
-    ].join(',');
-
-    const rows = filteredInvestments.map(inv => {
-      const change = calculateChange(inv.current_price, inv.purchase_price);
+      'Fecha Compra',
+    ];
+    const rows = investments.map((inv) => {
+      // Use purchasePrice, not purchase_price
+      const priceChangeData = calculateReturn(inv.currentPrice, inv.purchasePrice);
+      const priceChange = priceChangeData.amount;
+      const percentageChange = priceChangeData.percentage;
+      const ratioValue =
+        inv.type === 'CEDEAR' && inv.purchasePrice && inv.purchasePrice > 0
+          ? (inv.currentPrice / inv.purchasePrice).toFixed(2) + ':1'
+          : inv.ratio ?? '-';
+      const tenencia = inv.currentPrice * inv.quantity;
       return [
         inv.ticker,
         inv.name,
         inv.type,
-        inv.current_price,
-        inv.purchase_price,
-        change.absolute,
-        change.percentage.toFixed(2),
-        inv.ratio || '-',
+        inv.currentPrice,
+        inv.purchasePrice,
+        priceChange.toFixed(2),
+        percentageChange.toFixed(2) + '%',
+        ratioValue,
         inv.quantity,
-        (inv.current_price * inv.quantity),
-        inv.purchase_date
-      ].join(',');
+        tenencia.toFixed(2),
+        inv.purchaseDate
+          ? new Date(inv.purchaseDate).toLocaleDateString('es-AR')
+          : '-',
+      ];
     });
-
-    const csv = [headers, ...rows].join('\n');
+    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
     const blob = new Blob([csv], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `portfolio-${new Date().toISOString().split('T')[0]}.csv`;
-    a.click();
-    window.URL.revokeObjectURL(url);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = 'cartera.csv';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
+  // Ordenar inversiones según sortBy (nueva lógica completa)
+  const filteredInvestments = investments
+    .filter(investment =>
+      investment.ticker &&
+      typeof investment.currentPrice === 'number' &&
+      typeof investment.purchasePrice === 'number' &&
+      typeof investment.quantity === 'number' &&
+      (activeTypeFilter === 'Todos' || investment.type === activeTypeFilter) &&
+      (investment.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        investment.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    )
+    .sort((a, b) => {
+      // Favoritos primero
+      if ((b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0) !== 0)
+        return (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
+      // Nueva lógica de orden:
+      if (sortBy === 'tickerAZ') return a.ticker.localeCompare(b.ticker);
+      if (sortBy === 'tickerZA') return b.ticker.localeCompare(a.ticker);
+
+      if (sortBy === 'gananciaPorcentajeAsc') {
+        const retA = a.currentPrice && a.purchasePrice ? calculateReturn(a.currentPrice, a.purchasePrice).percentage : 0;
+        const retB = b.currentPrice && b.purchasePrice ? calculateReturn(b.currentPrice, b.purchasePrice).percentage : 0;
+        return retA - retB;
+      }
+      if (sortBy === 'gananciaPorcentajeDesc') {
+        const retA = a.currentPrice && a.purchasePrice ? calculateReturn(a.currentPrice, a.purchasePrice).percentage : 0;
+        const retB = b.currentPrice && b.purchasePrice ? calculateReturn(b.currentPrice, b.purchasePrice).percentage : 0;
+        return retB - retA;
+      }
+
+      if (sortBy === 'gananciaValorAsc') {
+        const retA = a.currentPrice && a.purchasePrice ? calculateReturn(a.currentPrice, a.purchasePrice).amount : 0;
+        const retB = b.currentPrice && b.purchasePrice ? calculateReturn(b.currentPrice, b.purchasePrice).amount : 0;
+        return retA - retB;
+      }
+      if (sortBy === 'gananciaValorDesc') {
+        const retA = a.currentPrice && a.purchasePrice ? calculateReturn(a.currentPrice, a.purchasePrice).amount : 0;
+        const retB = b.currentPrice && b.purchasePrice ? calculateReturn(b.currentPrice, b.purchasePrice).amount : 0;
+        return retB - retA;
+      }
+
+      if (sortBy === 'tenenciaAsc') {
+        const tenA = a.currentPrice * a.quantity;
+        const tenB = b.currentPrice * b.quantity;
+        return tenA - tenB;
+      }
+      if (sortBy === 'tenenciaDesc') {
+        const tenA = a.currentPrice * a.quantity;
+        const tenB = b.currentPrice * b.quantity;
+        return tenB - tenA;
+      }
+
+      if (sortBy === 'fechaAsc') {
+        const dateA = new Date(a.purchaseDate).getTime();
+        const dateB = new Date(b.purchaseDate).getTime();
+        return dateA - dateB;
+      }
+      if (sortBy === 'fechaDesc') {
+        const dateA = new Date(a.purchaseDate).getTime();
+        const dateB = new Date(b.purchaseDate).getTime();
+        return dateB - dateA;
+      }
+      return 0;
+    });
+
+  // Agrupamiento de inversiones si mergeTransactions está activo
+  const displayedInvestments = mergeTransactions
+    ? Object.values(
+        filteredInvestments.reduce((acc, inv) => {
+          const key = `${inv.ticker}-${inv.type}`;
+          if (!acc[key]) {
+            acc[key] = { ...inv };
+          } else {
+            const prevQty = acc[key].quantity;
+            const newQty = prevQty + inv.quantity;
+
+            acc[key].quantity = newQty;
+            acc[key].purchasePrice =
+              (acc[key].purchasePrice * prevQty + inv.purchasePrice * inv.quantity) / newQty;
+            acc[key].currentPrice =
+              (acc[key].currentPrice * prevQty + inv.currentPrice * inv.quantity) / newQty;
+            acc[key].allocation = (acc[key].allocation ?? 0) + (inv.allocation ?? 0);
+          }
+          return acc;
+        }, {} as Record<string, Investment>)
+      )
+    : filteredInvestments;
+
+  const calculateReturn = (current: number, purchase: number) => {
+    if (!purchase || isNaN(current) || isNaN(purchase)) {
+      return { amount: 0, percentage: 0 };
+    }
+    const difference = current - purchase;
+    const percentage = (difference / purchase) * 100;
+    return {
+      amount: difference,
+      percentage: percentage
+    };
+  };
+
+  const formatCurrency = (value: number, currency: 'USD' | 'ARS' = 'ARS') => {
+    const formatter = new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+      notation: 'standard',
+      useGrouping: true
+    });
+
+    return formatter.format(Math.round(value));
+  };
+
+  // Calcular totales en ARS y USD y visualización dinámica
+  const totalARS = investments.reduce((acc, inv) => {
+    if (inv.currency === 'ARS') return acc + inv.currentPrice * inv.quantity;
+    if (inv.currency === 'USD' && cclPrice) return acc + inv.currentPrice * inv.quantity * cclPrice;
+    return acc;
+  }, 0);
+
+  const totalUSD = investments
+      .filter((inv) => inv.currency === 'USD')
+      .reduce((acc, inv) => acc + inv.currentPrice * inv.quantity, 0);
+
+  // Totales para visualización según showInARS (corregido para convertir correctamente y evitar NaN)
+  const totalToShow = displayedInvestments.reduce((acc, inv) => {
+    const value = inv.currentPrice * inv.quantity;
+    if (showInARS) {
+      if (inv.currency === 'USD' && cclPrice) return acc + value * cclPrice;
+      if (inv.currency === 'ARS') return acc + value;
+      return acc;
+    } else {
+      if (inv.currency === 'ARS' && cclPrice) return acc + value / cclPrice;
+      if (inv.currency === 'USD') return acc + value;
+      return acc;
+    }
+  }, 0);
+  const totalCurrencyToShow = showInARS ? 'ARS' : 'USD';
+
+  // Ratio (actual/purchase), PPC (precio promedio de compra), Tenencia (cantidad)
+  // Se agregan columnas Ratio, PPC y Tenencia si faltan
+
+  useEffect(() => {
+    window.onerror = function (message, source, lineno, colno, error) {
+      console.error("Global Error:", { message, source, lineno, colno, error });
+    };
+  }, []);
+
+  console.log("Portfolio renderizado");
+  if (!user) return <div>Usuario no autenticado</div>;
   return (
-<<<<<<< HEAD
-    <div className="flex flex-col items-center mt-10 space-y-10 px-4">
-      <div className="w-full max-w-md p-8 bg-white shadow-lg rounded-lg border border-gray-200">
-        <h1 className="text-2xl font-bold mb-6 text-gray-800">Agregar Registro</h1>
-        {message && (
-          <p className={`mb-4 text-sm ${messageType === 'success' ? 'text-green-600' : 'text-red-600'}`}>{message}</p>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <input
-            type="text"
-            placeholder="Nombre"
-            value={nombre}
-            onChange={(e) => setNombre(e.target.value)}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg bg-white placeholder-gray-500 text-gray-800"
-          />
-          <input
-            type="number"
-            placeholder="Número"
-            value={numero}
-            onChange={(e) => setNumero(e.target.value)}
-            className="w-full border border-gray-300 px-4 py-2 rounded-lg bg-white placeholder-gray-500 text-gray-800"
-          />
-=======
-    <div className="container mx-auto px-4 py-8">
-      <div className="flex justify-between items-center mb-8">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Mi Cartera</h1>
-          <p className="text-gray-600 dark:text-gray-400">Gestiona tus inversiones</p>
-        </div>
-        <div className="flex items-center gap-4">
->>>>>>> 37efc5ccefe3ba329d1627637aa1d818c470622c
-          <button
-            onClick={exportToCSV}
-            className="px-4 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors flex items-center gap-2"
-          >
-<<<<<<< HEAD
-            Guardar
-=======
-            <Download size={16} />
-            Exportar CSV
->>>>>>> 37efc5ccefe3ba329d1627637aa1d818c470622c
-          </button>
-          <button
-            onClick={() => {}} // TODO: Implement add investment modal
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-          >
-            <Plus size={16} />
-            Agregar Inversión
-          </button>
-        </div>
-      </div>
-<<<<<<< HEAD
-      {registros.length > 0 && (
-        <div className="w-full max-w-2xl">
-          <h2 className="text-lg font-semibold mb-3 text-gray-800">Registros</h2>
-          <table className="w-full text-sm border border-gray-200">
-            <thead>
-              <tr className="bg-gray-100 text-left">
-                <th className="px-4 py-2 border-b">Nombre</th>
-                <th className="px-4 py-2 border-b">Número</th>
-              </tr>
-            </thead>
-            <tbody>
-              {registros.map((reg) => (
-                <tr key={reg.id} className="hover:bg-gray-50">
-                  <td className="px-4 py-2 border-b">{reg.nombre}</td>
-                  <td className="px-4 py-2 border-b">{reg.numero}</td>
-                </tr>
-              ))}
-=======
-
-      {/* Portfolio Summary */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Valor Total del Portfolio</h3>
-          <div className="flex items-baseline gap-4">
-            <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">
-              {showInUSD ? formatCurrency(totalValueUSD, 'USD') : formatCurrency(totalValue, 'ARS')}
-            </p>
-            <button
-              onClick={() => setShowInUSD(!showInUSD)}
-              className="text-sm text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-            >
-              Ver en {showInUSD ? 'ARS' : 'USD'}
-            </button>
+      <div className="space-y-6">
+        {/* Export CSV, Add Investment, and View in USD buttons grouped */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.3 }}
+          className="flex flex-wrap justify-between items-center gap-4"
+        >
+          <div className="text-center sm:text-left">
+            <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Mi Cartera</h1>
+            <p className="text-gray-600 dark:text-gray-400">Gestiona tus inversiones</p>
           </div>
-        </div>
-        <div className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700">
-          <h3 className="text-sm font-medium text-gray-500 dark:text-gray-400 mb-2">Cantidad de Activos</h3>
-          <p className="text-2xl font-bold text-gray-900 dark:text-gray-100">{investments.length}</p>
-        </div>
-      </div>
-
-      {/* Filters and Search */}
-      <div className="flex flex-wrap items-center gap-4 mb-6">
-        <div className="flex gap-2">
-          {(['TODOS', 'CEDEAR', 'CRYPTO', 'STOCK'] as const).map((filter) => (
+          <div className="flex gap-3 flex-wrap justify-end items-center">
             <button
-              key={filter}
-              onClick={() => setActiveFilter(filter)}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                activeFilter === filter
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'
+              onClick={handleExportCSV}
+              className="px-4 py-2 rounded-lg border text-sm flex items-center gap-2 transition-colors bg-green-600 text-white hover:bg-green-700 border-green-600"
+            >
+              <Download size={16} />
+              Exportar CSV
+            </button>
+            <button
+              onClick={() => setShowInARS(prev => !prev)}
+              className={`px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
+                showInARS
+                  ? 'bg-purple-700 text-white hover:bg-purple-800'
+                  : 'bg-[#0EA5E9] text-white hover:bg-[#0284c7]'
               }`}
             >
-              {filter}
+              <DollarSign size={16} className="text-white" />
+              Ver en {showInARS ? 'USD' : 'ARS'}
             </button>
-          ))}
-        </div>
-        <div className="flex-1 max-w-md relative">
-          <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            type="text"
-            placeholder="Buscar por Ticker o Nombre..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-      </div>
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-4 py-2 rounded-lg border text-sm flex items-center gap-2 transition-colors bg-blue-600 text-white hover:bg-blue-700 border-blue-600"
+            >
+              Agregar
+              <Plus size={18} />
+            </button>
+          </div>
+        </motion.div>
 
-      {/* Investments Table */}
-      <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead>
-              <tr className="bg-gray-50 dark:bg-gray-900 border-b border-gray-200 dark:border-gray-700">
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider"></th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Ticker</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Nombre</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Precio actual</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cambio $</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cambio %</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Ratio</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Cantidad</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">PPC</th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Tenencia</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Fecha</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Asignación</th>
-                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">Acciones</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-              {filteredInvestments.map((investment) => {
-                const change = calculateChange(investment.current_price, investment.purchase_price);
-                const allocation = calculateAllocation(investment.current_price * investment.quantity);
-                return (
-                  <tr key={investment.id} className="hover:bg-gray-50 dark:hover:bg-gray-900">
-                    <td className="px-6 py-4">
-                      <button
-                        onClick={() => {}} // TODO: Implement favorite toggle
-                        className={`${
-                          investment.is_favorite ? 'text-yellow-400' : 'text-gray-400'
-                        } hover:text-yellow-500 transition-colors`}
-                      >
-                        <Star size={18} fill={investment.is_favorite ? 'currentColor' : 'none'} />
-                      </button>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900 dark:text-gray-100">
-                      {investment.ticker}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {investment.name}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100">
-                      {formatCurrency(investment.current_price, investment.currency)}
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${
-                      change.absolute >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      <div className="flex items-center justify-end gap-1">
-                        {change.absolute >= 0 ? (
-                          <ArrowUpRight size={16} />
-                        ) : (
-                          <ArrowDownRight size={16} />
-                        )}
-                        {formatCurrency(Math.abs(change.absolute), investment.currency)}
-                      </div>
-                    </td>
-                    <td className={`px-6 py-4 whitespace-nowrap text-sm text-right ${
-                      change.percentage >= 0 ? 'text-green-600' : 'text-red-600'
-                    }`}>
-                      {change.percentage >= 0 ? '+' : ''}{change.percentage.toFixed(2)}%
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-center text-gray-700 dark:text-gray-300">
-                      {investment.ratio || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100">
-                      {investment.quantity}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100">
-                      {formatCurrency(investment.purchase_price, investment.currency)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-right text-gray-900 dark:text-gray-100 font-medium">
-                      {formatCurrency(investment.current_price * investment.quantity, investment.currency)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      {new Date(investment.purchase_date).toLocaleDateString()}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <div className="flex items-center">
-                        <div className="flex-1 h-1.5 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
-                          <div
-                            className="h-full bg-blue-600 rounded-full"
-                            style={{ width: `${allocation}%` }}
-                          />
-                        </div>
-                        <span className="ml-2 text-sm text-gray-600 dark:text-gray-400">
-                          {allocation.toFixed(1)}%
-                        </span>
-                      </div>
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 dark:text-gray-300">
-                      <div className="flex justify-center gap-2">
-                        <button
-                          onClick={() => {}} // TODO: Implement edit
-                          className="text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          <Pencil size={16} />
-                        </button>
-                        <button
-                          onClick={() => {}} // TODO: Implement delete
-                          className="text-red-600 hover:text-red-800 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          <Trash2 size={16} />
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
->>>>>>> 37efc5ccefe3ba329d1627637aa1d818c470622c
-            </tbody>
-          </table>
+        {/* Resumen de totales (nuevo diseño y orden, todo centrado y uniforme) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 text-center text-sm font-medium">
+          {/* Total de inversiones */}
+          <div className={`p-4 rounded-xl ${
+            activeTypeFilter === 'Todos'
+              ? 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700'
+              : activeTypeFilter === 'Cripto'
+              ? 'bg-gradient-to-br from-orange-100 to-orange-50 text-orange-700'
+              : activeTypeFilter === 'CEDEAR'
+              ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700'
+              : 'bg-[#E0F2FE] text-[#0EA5E9]'
+          } shadow-sm border flex flex-col justify-center items-center`}>
+            <h3 className="">Total de inversiones</h3>
+            <p className="text-xl font-bold mt-1">
+              {displayedInvestments.length}
+            </p>
+          </div>
+
+          {/* Invertido */}
+          <div className={`p-4 rounded-xl ${
+            activeTypeFilter === 'Todos'
+              ? 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700'
+              : activeTypeFilter === 'Cripto'
+              ? 'bg-gradient-to-br from-orange-100 to-orange-50 text-orange-700'
+              : activeTypeFilter === 'CEDEAR'
+              ? 'bg-gradient-to-br from-purple-100 to-purple-50 text-purple-700'
+              : 'bg-[#E0F2FE] text-[#0EA5E9]'
+          } shadow-sm border flex flex-col justify-center items-center`}>
+            <h3>Invertido</h3>
+            <p className="text-xl font-bold mt-1">
+              {formatCurrency(
+                displayedInvestments.reduce((acc, i) => {
+                  const val = i.purchasePrice * i.quantity;
+                  if (showInARS) {
+                    if (i.currency === 'USD') return cclPrice ? acc + val * cclPrice : acc;
+                    if (i.currency === 'ARS') return acc + val;
+                  } else {
+                    if (i.currency === 'ARS') return cclPrice ? acc + val / cclPrice : acc;
+                    if (i.currency === 'USD') return acc + val;
+                  }
+                  return acc;
+                }, 0),
+                totalCurrencyToShow
+              )}
+            </p>
+          </div>
+
+          {/* Valor Total del Portafolio (nuevo: global, color según ganancia/pérdida global) */}
+          <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center col-span-full md:col-span-2 md:col-start-3 ${
+            (() => {
+              const totalActual = investments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                if (showInARS) {
+                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                  if (i.currency === 'ARS') return acc + val;
+                } else {
+                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                  if (i.currency === 'USD') return acc + val;
+                }
+                return acc;
+              }, 0);
+              const totalInvertido = investments.reduce((acc, i) => {
+                const val = i.purchasePrice * i.quantity;
+                if (showInARS) {
+                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                  if (i.currency === 'ARS') return acc + val;
+                } else {
+                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                  if (i.currency === 'USD') return acc + val;
+                }
+                return acc;
+              }, 0);
+              if (totalActual > totalInvertido) return 'bg-green-50 text-green-700';
+              if (totalActual < totalInvertido) return 'bg-red-50 text-red-700';
+              return 'bg-blue-50 text-blue-700';
+            })()
+          }`}>
+            <h3>Valor Total del Portafolio</h3>
+            <p className="text-xl font-bold mt-1 text-current">
+              {formatCurrency(
+                investments.reduce((acc, i) => {
+                  const val = i.currentPrice * i.quantity;
+                  if (showInARS) {
+                    if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                    if (i.currency === 'ARS') return acc + val;
+                  } else {
+                    if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                    if (i.currency === 'USD') return acc + val;
+                  }
+                  return acc;
+                }, 0),
+                totalCurrencyToShow
+              )}
+            </p>
+          </div>
+
+          {/* Actual */}
+          <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
+            (() => {
+              const actual = displayedInvestments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
+              const invertido = displayedInvestments.reduce((acc, i) => {
+                const val = i.purchasePrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
+              return actual >= invertido
+                ? 'bg-green-50 text-green-700'
+                : 'bg-red-50 text-red-700';
+            })()
+          }`}>
+            <h3>Actual</h3>
+            <p className="text-xl font-bold mt-1">
+              {formatCurrency(
+                displayedInvestments.reduce((acc, i) => {
+                  const val = i.currentPrice * i.quantity;
+                  return showInARS
+                    ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                    : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+                }, 0),
+                totalCurrencyToShow
+              )}
+            </p>
+          </div>
+
+          {/* Resultado */}
+          <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
+            (() => {
+              const actual = displayedInvestments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
+              const invertido = displayedInvestments.reduce((acc, i) => {
+                const val = i.purchasePrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
+              return actual >= invertido
+                ? 'bg-green-50 text-green-700'
+                : 'bg-red-50 text-red-700';
+            })()
+          }`}>
+            <h3>Resultado</h3>
+            {(() => {
+              const invertido = displayedInvestments.reduce((acc, i) => {
+                const val = i.purchasePrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
+              const actual = displayedInvestments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
+              const diff = actual - invertido;
+              return (
+                <p className="text-xl font-bold mt-1">
+                  {formatCurrency(diff, totalCurrencyToShow)} ({invertido !== 0 ? ((diff / invertido) * 100).toFixed(2) : '0.00'}%)
+                </p>
+              );
+            })()}
+          </div>
+
         </div>
-      </div>
+
+        <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.3, delay: 0.1 }}
+            className="bg-white backdrop-blur-sm bg-opacity-80 rounded-xl shadow-sm p-6 border border-gray-100"
+        >
+          {/* Filtro de tipo de activo, búsqueda y orden */}
+          <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
+            <div className="flex gap-2 flex-wrap items-center">
+              {['Todos', 'Cripto', 'CEDEAR', 'Acción'].map((type) => (
+                <button
+                  key={type}
+                  onClick={() => setActiveTypeFilter(type as any)}
+                  className={`px-3 py-1 rounded-lg text-sm border ${
+                    activeTypeFilter === type ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+              <label htmlFor="mergeTransactions" className="inline-flex items-center gap-2 px-3 py-1 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 cursor-pointer ml-2">
+                <input
+                  type="checkbox"
+                  id="mergeTransactions"
+                  checked={mergeTransactions}
+                  onChange={(e) => setMergeTransactions(e.target.checked)}
+                  className="form-checkbox text-blue-600 rounded"
+                />
+                Unificar transacciones
+              </label>
+            </div>
+            <div className="flex gap-4 flex-wrap items-center justify-end">
+              <div className="relative flex-1 w-full max-w-xs">
+                <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                <input
+                  type="text"
+                  placeholder="Buscar por Ticker o Nombre..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="max-w-xs w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="sortBy" className="mr-2 text-sm text-gray-700">Ordenar por:</label>
+                <select
+                  id="sortBy"
+                  value={sortBy}
+                  onChange={e => setSortBy(e.target.value as
+                    'tickerAZ' | 'tickerZA' |
+                    'gananciaPorcentajeAsc' | 'gananciaPorcentajeDesc' |
+                    'gananciaValorAsc' | 'gananciaValorDesc' |
+                    'tenenciaAsc' | 'tenenciaDesc' |
+                    'fechaAsc' | 'fechaDesc'
+                  )}
+                  className="px-2 py-1 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  <option value="tickerAZ">Ticker A-Z</option>
+                  <option value="tickerZA">Ticker Z-A</option>
+                  <option value="gananciaPorcentajeAsc">Ganancia % ↑</option>
+                  <option value="gananciaPorcentajeDesc">Ganancia % ↓</option>
+                  <option value="gananciaValorAsc">Ganancia $ ↑</option>
+                  <option value="gananciaValorDesc">Ganancia $ ↓</option>
+                  <option value="tenenciaAsc">Tenencia ↑</option>
+                  <option value="tenenciaDesc">Tenencia ↓</option>
+                  <option value="fechaAsc">Fecha ↑</option>
+                  <option value="fechaDesc">Fecha ↓</option>
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {loading ? (
+              <div className="flex justify-center items-center h-40">
+                <Loader className="animate-spin text-blue-600" size={24} />
+              </div>
+          ) : displayedInvestments.length > 0 ? (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                  <tr className="text-left border-b border-gray-200">
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center"> {/* Corazón (favorito) */} </th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ticker</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Nombre</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Precio actual</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cambio $</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cambio %</th>
+                    {activeTypeFilter !== 'Cripto' && activeTypeFilter !== 'Acción' && (
+                        <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ratio</th>
+                    )}
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cantidad</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">PPC</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Tenencia</th>
+                    {!mergeTransactions && (
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Fecha de compra</th>
+                    )}
+                    {!mergeTransactions && (
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Asignación</th>
+                    )}
+                    {!mergeTransactions && (
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Acciones</th>
+                    )}
+                  </tr>
+                  </thead>
+                  <tbody>
+                  {displayedInvestments.map((investment) => {
+                    if (
+                        typeof investment.currentPrice !== 'number' ||
+                        typeof investment.purchasePrice !== 'number' ||
+                        typeof investment.quantity !== 'number'
+                    ) {
+                      console.warn('Inversión inválida detectada y omitida:', investment);
+                      return null;
+                    }
+                    // Cálculos para las columnas de cambio con validaciones de seguridad
+                    // Si mergeTransactions está activo, los datos ya están agrupados y calculados.
+                    let priceChange, priceChangePercent, isChangePositive, ratio, tenencia;
+                    let displayCurrency = showInARS ? 'ARS' : 'USD';
+                    let displayPriceChange, displayPPC, displayTenencia;
+                    let tenenciaCurrency = displayCurrency;
+                    let ppcCurrency = displayCurrency;
+                    if (mergeTransactions) {
+                      // Para agrupados: recalcular cantidad sumada, PPC ponderado, tenencia, cambio
+                      // priceChange: currentPrice agrupado - purchasePrice agrupado
+                      priceChange = (investment.currentPrice ?? 0) - (investment.purchasePrice ?? 0);
+                      priceChangePercent = investment.purchasePrice
+                        ? (priceChange / investment.purchasePrice) * 100
+                        : 0;
+                      isChangePositive = priceChange >= 0;
+                      ratio = investment.purchasePrice && investment.purchasePrice > 0
+                        ? investment.currentPrice / investment.purchasePrice
+                        : 0;
+                      tenencia = (investment.currentPrice ?? 0) * (investment.quantity ?? 0);
+                      // Corregido: displayPriceChange ahora es la ganancia/pérdida total (por cantidad)
+                      displayPriceChange = showInARS
+                        ? investment.currency === 'USD' && cclPrice
+                          ? priceChange * investment.quantity * cclPrice
+                          : priceChange * investment.quantity
+                        : investment.currency === 'ARS' && cclPrice
+                          ? priceChange * investment.quantity / cclPrice
+                          : priceChange * investment.quantity;
+                      displayPPC = showInARS
+                        ? investment.currency === 'USD' && cclPrice
+                          ? investment.purchasePrice * cclPrice
+                          : investment.purchasePrice
+                        : investment.currency === 'ARS' && cclPrice
+                          ? investment.purchasePrice / cclPrice
+                          : investment.purchasePrice;
+                      displayTenencia = showInARS
+                        ? investment.currency === 'USD' && cclPrice
+                          ? tenencia * cclPrice
+                          : tenencia
+                        : investment.currency === 'ARS' && cclPrice
+                          ? tenencia / cclPrice
+                          : tenencia;
+                    } else {
+                      priceChange = (investment.currentPrice ?? 0) - (investment.purchasePrice ?? 0);
+                      priceChangePercent = investment.purchasePrice
+                        ? (priceChange / investment.purchasePrice) * 100
+                        : 0;
+                      isChangePositive = priceChange >= 0;
+                      ratio = investment.purchasePrice && investment.purchasePrice > 0
+                        ? investment.currentPrice / investment.purchasePrice
+                        : 0;
+                      tenencia = (investment.currentPrice ?? 0) * (investment.quantity ?? 0);
+                      displayCurrency = showInARS ? 'ARS' : 'USD';
+                      // Corregido: displayPriceChange ahora es la ganancia/pérdida total (por cantidad)
+                      displayPriceChange = showInARS
+                        ? investment.currency === 'USD' && cclPrice
+                          ? priceChange * investment.quantity * cclPrice
+                          : priceChange * investment.quantity
+                        : investment.currency === 'ARS' && cclPrice
+                          ? priceChange * investment.quantity / cclPrice
+                          : priceChange * investment.quantity;
+                      displayPPC = showInARS
+                        ? investment.currency === 'USD' && cclPrice
+                          ? investment.purchasePrice * cclPrice
+                          : investment.purchasePrice
+                        : investment.currency === 'ARS' && cclPrice
+                          ? investment.purchasePrice / cclPrice
+                          : investment.purchasePrice;
+                      displayTenencia = showInARS
+                        ? investment.currency === 'USD' && cclPrice
+                          ? tenencia * cclPrice
+                          : tenencia
+                        : investment.currency === 'ARS' && cclPrice
+                          ? tenencia / cclPrice
+                          : tenencia;
+                    }
+                    // --- Cálculo de asignación relativo al tipo de activo filtrado ---
+                    const filteredTotal = activeTypeFilter === 'Todos'
+                      ? displayedInvestments.reduce((acc, i) => acc + i.currentPrice * i.quantity, 0)
+                      : displayedInvestments
+                          .filter(i => i.type === activeTypeFilter)
+                          .reduce((acc, i) => acc + i.currentPrice * i.quantity, 0);
+                    const actualValue = investment.currentPrice * investment.quantity;
+                    const allocationPercent = filteredTotal > 0 ? (actualValue / filteredTotal) * 100 : 0;
+                    // ---------------------------------------------------------------
+                    return (
+                        <tr
+                            key={investment.id}
+                            className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
+                        >
+                          {/* Corazón (favorito, centrado) */}
+                          <td className="py-4 px-4 text-center">
+                            <button onClick={() => toggleFavorite(investment.id)}>
+                              <Heart
+                                  size={18}
+                                  fill={investment.isFavorite ? '#f87171' : 'none'}
+                                  className={`stroke-2 ${investment.isFavorite ? 'text-red-500' : 'text-gray-400'} hover:scale-110 transition-transform`}
+                              />
+                            </button>
+                          </td>
+                          {/* Ticker */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center gap-2">
+                              <img
+                                  src={predefinedAssets.find(a => a.ticker === investment.ticker)?.logo}
+                                  alt={investment.ticker}
+                                  className="w-5 h-5 rounded-full object-contain"
+                              />
+                              <span className="font-medium text-gray-800">{investment.ticker}</span>
+                            </div>
+                          </td>
+                          {/* Nombre */}
+                          <td className="py-4 px-4 text-gray-600">{investment.name}</td>
+                          {/* Precio actual */}
+                          <td className="py-4 px-4 text-gray-600">
+                            {formatCurrency(
+                                showInARS
+                                    ? investment.currency === 'USD' && cclPrice
+                                        ? investment.currentPrice * cclPrice
+                                        : investment.currentPrice
+                                    : investment.currency === 'ARS' && cclPrice
+                                        ? investment.currentPrice / cclPrice
+                                        : investment.currentPrice,
+                                displayCurrency
+                            )}
+                          </td>
+                          {/* Cambio $ */}
+                          <td className={`py-4 px-4 text-center ${isChangePositive ? 'text-green-600' : 'text-red-600'}`}>
+                            {isChangePositive ? '+' : ''}
+                            {formatCurrency(displayPriceChange, displayCurrency)}
+                          </td>
+                          {/* Cambio % */}
+                          <td className={`py-4 px-4 text-center ${isChangePositive ? 'text-green-600' : 'text-red-600'}`}>
+                        <span className="inline-flex items-center">
+                          {isChangePositive
+                              ? <TrendingUp size={15} className="inline-block mr-1" />
+                              : <TrendingDown size={15} className="inline-block mr-1" />
+                          }
+                          {priceChangePercent >= 0 ? '+' : ''}
+                          {priceChangePercent.toFixed(2)}%
+                        </span>
+                          </td>
+                          {/* Ratio */}
+                          {activeTypeFilter !== 'Cripto' && activeTypeFilter !== 'Acción' && (
+                              <td className="py-4 px-4 text-center">
+                                {investment.type === 'CEDEAR'
+                                    ? (
+                                        <div className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 inline-block">
+                                          {ratio.toFixed(2)}:1
+                                        </div>
+                                    )
+                                    : '-'}
+                              </td>
+                          )}
+                          {/* Cantidad */}
+                          <td className="py-4 px-4 text-center">{investment.quantity.toFixed(4)}</td>
+                          {/* PPC */}
+                          <td className="py-4 px-4 text-gray-600 text-center">
+                            {formatCurrency(displayPPC, ppcCurrency)}
+                          </td>
+                          {/* Tenencia */}
+                          <td className="py-4 px-4 text-gray-600 text-center">
+                            {displayTenencia < 1
+                              ? new Intl.NumberFormat('es-AR', {
+                                  style: 'currency',
+                                  currency: tenenciaCurrency,
+                                  minimumFractionDigits: 1,
+                                  maximumFractionDigits: 1
+                                }).format(displayTenencia)
+                              : formatCurrency(displayTenencia, tenenciaCurrency)}
+                          </td>
+                          {/* Fecha de compra */}
+                          {!mergeTransactions && (
+                            <td className="py-4 px-4 text-gray-600 text-center">
+                              {investment.purchaseDate
+                                  ? new Date(investment.purchaseDate).toLocaleDateString('es-AR')
+                                  : 'Fecha no disponible'}
+                            </td>
+                          )}
+                          {/* Asignación */}
+                          <td className="py-4 px-4">
+                            <div className="flex items-center justify-center">
+                              <div className="w-16 bg-gray-200 rounded-full h-2 mr-2">
+                                <div
+                                  className={`h-2 rounded-full ${
+                                    activeTypeFilter === 'Todos'
+                                      ? 'bg-blue-600'
+                                      : activeTypeFilter === 'Cripto'
+                                      ? 'bg-orange-500'
+                                      : activeTypeFilter === 'CEDEAR'
+                                      ? 'bg-purple-600'
+                                      : 'bg-[#0EA5E9]'
+                                  }`}
+                                  style={{ width: `${allocationPercent.toFixed(0)}%` }}
+                                />
+                              </div>
+                              <span className="text-sm text-gray-600">
+                                {allocationPercent.toFixed(0)}%
+                              </span>
+                            </div>
+                          </td>
+                          {/* Acciones */}
+                          {!mergeTransactions && (
+                            <td className="py-4 px-4 flex gap-4 justify-center">
+                              <button
+                                  onClick={() => handleEditInvestment(investment)}
+                                  className="text-yellow-500 hover:text-yellow-600 transition-colors"
+                                  title="Editar inversión"
+                              >
+                                <Edit2 size={18} />
+                              </button>
+                              <button
+                                  onClick={() => handleDeleteInvestment(investment.id)}
+                                  className="text-red-500 hover:text-red-600 transition-colors"
+                                  title="Eliminar inversión"
+                              >
+                                <Trash size={18} />
+                              </button>
+                            </td>
+                          )}
+                        </tr>
+                    );
+                  })}
+                  </tbody>
+                </table>
+              </div>
+          ) : (
+              <div className="text-center py-10">
+                <p className="text-gray-500">Aún no has agregado inversiones.</p>
+              </div>
+          )}
+          {/* Agregar inversión (botón secundario, centrado debajo de la tabla) */}
+          <div className="mt-6 flex justify-center">
+            <button
+              onClick={() => setShowAddModal(true)}
+              className="px-5 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium flex items-center gap-2"
+            >
+              <Plus size={16} />
+              Agregar inversión
+            </button>
+          </div>
+        </motion.div>
+
+        {/* Add Investment Modal */}
+        {showAddModal && (
+            <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
+            >
+              <motion.div
+                  initial={{ scale: 0.95, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  className="bg-white rounded-xl shadow-lg p-6 max-w-md w-full border border-gray-200"
+              >
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-2xl font-bold text-gray-900">📈 Agregar nueva inversión</h3>
+                  <button
+                      onClick={() => setShowAddModal(false)}
+                      className="text-gray-500 hover:text-gray-700 transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+
+                {error && (
+                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
+                      <AlertCircle size={18} className="mr-2 flex-shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                )}
+
+                {success && (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700">
+                      <Check size={18} className="mr-2 flex-shrink-0" />
+                      <span>{success}</span>
+                    </div>
+                )}
+
+                <form onSubmit={handleAddInvestment} className="space-y-4">
+                  {/* Tipo de inversión */}
+                  <div>
+                    <label htmlFor="type" className="block text-sm font-medium text-gray-800 mb-1">
+                      Tipo de inversión
+                    </label>
+                    <select
+                        id="type"
+                        value={newInvestment.type}
+                        onChange={(e) =>
+                            setNewInvestment((prev) => ({
+                              ...prev,
+                              type: e.target.value as 'Cripto' | 'CEDEAR' | 'Acción',
+                            }))
+                        }
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                    >
+                      <option value="CEDEAR">CEDEAR</option>
+                      <option value="Acción">Acción</option>
+                      <option value="Cripto">Cripto</option>
+                    </select>
+                  </div>
+                  {/* --- Asset Selection: búsqueda e íconos --- */}
+                  <div className="mb-4">
+                    <label htmlFor="assetSearch" className="block text-sm font-medium text-gray-800 mb-1">
+                      Seleccionar Activo
+                    </label>
+                    <div className="relative">
+                      <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-blue-500">
+                        {selectedAsset && (
+                            <img
+                                src={selectedAsset.logo}
+                                alt={selectedAsset.name}
+                                className="w-5 h-5 rounded-full object-contain"
+                            />
+                        )}
+                        <input
+                            type="text"
+                            id="assetSearch"
+                            value={assetSearchTerm.length > 0 ? assetSearchTerm : (selectedAsset ? selectedAsset.ticker : '')}
+                            onChange={(e) => {
+                              setAssetSearchTerm(e.target.value);
+                              setSelectedAsset(null);
+                            }}
+                            placeholder="Buscar activo..."
+                            className="flex-1 outline-none bg-transparent text-sm text-gray-800"
+                            autoComplete="off"
+                        />
+                      </div>
+                      {(assetSearchTerm.length > 0 && filteredAssets.length > 0) && (
+                          <ul className="absolute left-0 w-full z-50 bg-white border border-gray-200 mt-1 max-h-52 overflow-y-auto rounded-lg shadow-lg">
+                            {filteredAssets.map((asset) => (
+                                <li
+                                    key={asset.ticker}
+                                    onClick={() => {
+                                      handleAssetSelect(asset);
+                                      setSelectedAsset(asset);
+                                      setAssetSearchTerm('');
+                                    }}
+                                    className="flex items-center p-2 hover:bg-gray-100 cursor-pointer"
+                                >
+                                  <img
+                                      src={asset.logo}
+                                      alt={asset.name}
+                                      className="w-6 h-6 rounded-full mr-2 object-contain"
+                                      style={{ minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24 }}
+                                  />
+                                  <div>
+                                    <p className="text-sm font-medium text-gray-800">{asset.ticker}</p>
+                                    <p className="text-xs text-gray-500">{asset.name}</p>
+                                  </div>
+                                </li>
+                            ))}
+                          </ul>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Fecha de compra */}
+
+                  <div className="mb-4">
+                    <label htmlFor="purchaseDate" className="block text-sm font-medium text-gray-800 mb-1">
+                      Fecha de compra
+                    </label>
+                    <div className="relative">
+                      <Calendar size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                      <input
+                          type="date"
+                          id="purchaseDate"
+                          value={newInvestment.purchaseDate}
+                          onChange={(e) =>
+                              setNewInvestment((prev) => ({ ...prev, purchaseDate: e.target.value }))
+                          }
+                          className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      />
+                    </div>
+                  </div>
+
+
+                  <div>
+                    <label htmlFor="quantity" className="block text-sm font-medium text-gray-800 mb-1">
+                      Cantidad
+                    </label>
+                    <input
+                        type="number"
+                        id="quantity"
+                        value={newInvestment.quantity || ''}
+                        onChange={(e) => setNewInvestment(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
+                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                        step="any"
+                        min="0"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label htmlFor="currency" className="block text-sm font-medium text-gray-800 mb-1">
+                        Moneda
+                      </label>
+                      <select
+                          id="currency"
+                          value={newInvestment.currency}
+                          onChange={(e) => setNewInvestment(prev => ({ ...prev, currency: e.target.value as 'USD' | 'ARS' }))}
+                          className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                      >
+                        <option value="ARS">ARS</option>
+                        <option value="USD">USD</option>
+                      </select>
+                    </div>
+
+                    <div>
+                      <label htmlFor="purchasePrice" className="block text-sm font-medium text-gray-800 mb-1">
+                        Precio de compra
+                      </label>
+                      <div className="relative">
+                        <DollarSign size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                        <input
+                            type="number"
+                            id="purchasePrice"
+                            value={newInvestment.purchasePrice || ''}
+                            onChange={(e) => setNewInvestment(prev => ({ ...prev, purchasePrice: parseFloat(e.target.value) || 0 }))}
+                            className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
+                            step="any"
+                            min="0"
+                        />
+                      </div>
+                      {fetchingPrice && (
+                          <p className="mt-1 text-sm text-gray-500 flex items-center">
+                            <Loader size={12} className="animate-spin mr-1" />
+                            Obteniendo precio actual...
+                          </p>
+                      )}
+                      {currentPrice && !fetchingPrice && (
+                          <div className="mt-2 flex items-center justify-between rounded-lg bg-blue-100 px-4 py-2 border border-blue-300 text-blue-900 text-sm">
+                            <div className="flex items-center gap-2">
+                              <DollarSign size={16} className="text-blue-600" />
+                              <span className="font-medium">Precio actual sugerido:</span>
+                              <strong>
+                                {formatCurrency(currentPrice, newInvestment.currency)}
+                              </strong>
+                            </div>
+                            {newInvestment.type === 'CEDEAR' && (
+                                <span className="text-xs text-gray-600 ml-2 italic">(convertido con CCL)</span>
+                            )}
+                          </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end space-x-3 pt-4">
+                    <button
+                        type="button"
+                        onClick={() => setShowAddModal(false)}
+                        className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                        type="submit"
+                        className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-semibold rounded-lg shadow-md transition-colors flex items-center"
+                    >
+                      <Plus size={18} className="mr-2" />
+                      Agregar
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </motion.div>
+        )}
+      {/* Tabla de resumen total por tipo de activo (eliminada por nuevo diseño) */}
+
+
+
+
     </div>
   );
 };
 
 export default Portfolio;
+
