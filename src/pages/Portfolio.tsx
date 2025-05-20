@@ -66,12 +66,18 @@ const Portfolio: React.FC = () => {
 
   const fetchInvestments = async () => {
     if (!user?.id) return;
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('investments')
       .select('*')
       .eq('user_id', user.id)
       .order('purchase_date', { ascending: false });
-    setInvestments(data || []);
+    if (error) {
+      console.error('Error fetching investments:', error);
+      setMessage('Error al cargar las inversiones.');
+      setMessageType('error');
+    } else {
+      setInvestments(data || []);
+    }
   };
 
   React.useEffect(() => {
