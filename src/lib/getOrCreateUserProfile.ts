@@ -1,3 +1,5 @@
+// Obtiene o crea el perfil de usuario en la base
+
 import { supabase } from "./supabase"; // Asegurate que tu cliente está exportado así
 
 export async function getOrCreateUserProfile() {

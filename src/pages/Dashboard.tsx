@@ -1,3 +1,5 @@
+// Página principal con resúmenes y cotizaciones
+
 import React, { useEffect, useState } from 'react';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';

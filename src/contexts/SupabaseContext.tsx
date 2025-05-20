@@ -1,3 +1,5 @@
+// Provee el cliente de Supabase a toda la app
+
 import React, { createContext, useContext } from 'react';
 import { supabase } from '../lib/supabase';
 

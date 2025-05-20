@@ -1,3 +1,5 @@
+/* Layout general de la página: cabecera y área de contenido */
+
 import React from 'react';
 import { Outlet } from 'react-router-dom';
 import Header from './Header';

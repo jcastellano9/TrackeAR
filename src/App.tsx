@@ -1,3 +1,5 @@
+// Componente principal que define las rutas y los contextos
+
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { SupabaseProvider } from './contexts/SupabaseContext';

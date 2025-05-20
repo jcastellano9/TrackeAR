@@ -1,3 +1,5 @@
+// Página para administrar la cartera personal
+
 import React, { useState } from 'react';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';

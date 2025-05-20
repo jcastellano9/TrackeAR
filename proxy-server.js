@@ -1,3 +1,5 @@
+// Servidor proxy sencillo que reenvía peticiones a la API de cotizaciones
+
 // proxy-server.js (formato ESModule)
 import express from 'express';
 import fetch from 'node-fetch';

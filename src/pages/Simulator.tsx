@@ -1,3 +1,5 @@
+// Herramientas para simular inversiones y cuotas
+
 import React, { useState, useEffect } from 'react';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';

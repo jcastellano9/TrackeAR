@@ -1,3 +1,5 @@
+// Análisis detallado de tasas y rendimientos
+
 import React, { useEffect, useState } from 'react';
 import { Bitcoin, Landmark } from 'lucide-react';
 

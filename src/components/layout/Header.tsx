@@ -1,3 +1,5 @@
+/* Encabezado con navegación y cambio de tema */
+
 import React, { useState, useEffect } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';

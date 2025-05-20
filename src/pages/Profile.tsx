@@ -1,3 +1,5 @@
+// Sección para editar datos del perfil de usuario
+
 import React, { useState, useRef, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
