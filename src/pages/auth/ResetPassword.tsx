@@ -1,3 +1,5 @@
+// Permite solicitar el reinicio de contraseña
+
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';

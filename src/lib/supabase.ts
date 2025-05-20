@@ -1,3 +1,5 @@
+// Inicializa el cliente de Supabase con las claves
+
 import { createClient } from '@supabase/supabase-js';
 
 // Initialize the Supabase client with environment variables

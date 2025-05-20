@@ -1,3 +1,5 @@
+// Contexto para controlar el modo claro u oscuro
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
 interface ThemeContextType {

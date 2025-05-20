@@ -1,3 +1,5 @@
+// Distintos análisis de rendimientos y cotizaciones
+
 import React, { useState, useEffect } from 'react';
 import YieldAnalysis from './YieldAnalysis';
 import { useSupabase } from '../contexts/SupabaseContext';

@@ -1,3 +1,5 @@
+// Pruebas para la función getOrCreateUserProfile
+
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { getOrCreateUserProfile } from '../getOrCreateUserProfile';
 

@@ -1,3 +1,5 @@
+// Contexto para manejar la autenticación de usuarios
+
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User } from '@supabase/supabase-js';
 import { useSupabase } from './SupabaseContext';
