@@ -734,7 +734,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex justify-between items-center">
                   <div className="flex flex-col justify-center">
                     <p className="text-base font-medium text-gray-800 dark:text-gray-100">Inflación mensual oficial</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Fuente: BCRA</p>
+                    <p className="text-xs text-gray-500 dark:text-gray-400">Fuente: INDEC</p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       {lastInflationDate ? `Última actualización: ${lastInflationDate}` : null}
                     </p>
