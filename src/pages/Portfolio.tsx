@@ -34,27 +34,32 @@ const Portfolio: React.FC = () => {
       return;
     }
 
-    const { error } = await supabase.from('investments').insert([
-      {
-        id: crypto.randomUUID(),
-        user_id: user.id,
-        ticker,
-        name,
-        type: 'CEDEAR', // default type
-        quantity,
-        purchase_price: purchasePrice,
-        current_price: purchasePrice,
-        purchase_date: purchaseDate,
-        currency: 'ARS',
-        is_favorite: false
-      }
-    ]);
+    const { data, error } = await supabase
+      .from('investments')
+      .insert([
+        {
+          user_id: user.id,
+          ticker,
+          name,
+          type: 'CEDEAR',
+          quantity,
+          purchase_price: purchasePrice,
+          current_price: purchasePrice,
+          purchase_date: purchaseDate,
+          currency: 'ARS',
+          is_favorite: false,
+        },
+      ])
+      .select('*')
+      .single();
 
     if (error) {
       console.error('Error Supabase:', error);
-      setMessage(`Error al guardar la inversión: ${error.message || JSON.stringify(error)}`);
+      setMessage(
+        `Error al guardar la inversión: ${error.message || JSON.stringify(error)}`
+      );
       setMessageType('error');
-    } else {
+    } else if (data) {
       setMessage('Inversión guardada exitosamente.');
       setMessageType('success');
       setTicker('');
@@ -62,7 +67,7 @@ const Portfolio: React.FC = () => {
       setQuantity(0);
       setPurchasePrice(0);
       setPurchaseDate(new Date().toISOString().split('T')[0]);
-      fetchInvestments(); // reload after saving
+      setInvestments((prev) => [data, ...prev]);
     }
   };
 
