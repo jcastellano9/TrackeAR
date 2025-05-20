@@ -15,7 +15,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { DollarSign, Bitcoin, Wallet, ArrowUpRight, ArrowDownRight, ExternalLink, Loader, Ban as Bank, TrendingUp, AlertCircle } from 'lucide-react';
+import { DollarSign, Bitcoin, Wallet, ArrowUpRight, ArrowDownRight, ExternalLink, Loader, TrendingUp, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
 // Register ChartJS components
