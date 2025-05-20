@@ -58,7 +58,6 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
         const plazosData = await plazosRes.json();
         const criptoData = await criptoRes.json();
 
-        console.log('Billeteras recibidas:', billeterasData);
 
         setBilleteras(billeterasData);
         setPlazosFijos(plazosData);
