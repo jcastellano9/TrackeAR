@@ -1,4 +1,4 @@
-import { supabase } from "./supabase"; // Asegurate que tu cliente está exportado así
+import { supabase } from "./supabase"; // Asegúrate que tu cliente está exportado así
 
 export async function getOrCreateUserProfile() {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
