@@ -16,7 +16,6 @@ interface Investment {
   purchaseDate: string;
   currency: 'USD' | 'ARS';
   isFavorite?: boolean;
-  ratio?: string | null;
 }
 
 interface NewInvestment {
@@ -74,7 +73,7 @@ const Portfolio: React.FC = () => {
     quantity: 0,
     purchasePrice: 0,
     purchaseDate: new Date().toISOString().split('T')[0],
-    currency: 'ARS'
+    currency: 'ARS',
   });
 
   // Predefined assets state (dynamic)
@@ -99,6 +98,7 @@ const Portfolio: React.FC = () => {
   useEffect(() => {
     const fetchAssets = async () => {
       try {
+        // Criptos
         const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd');
         const data = await res.json();
         const formattedAssets: PredefinedAsset[] = data.map((coin: any) => ({
@@ -107,39 +107,27 @@ const Portfolio: React.FC = () => {
           type: 'Cripto',
           logo: coin.image
         }));
-        // CEDEARs y Acciones manuales con rutas reales de íconos
-        const cedears: PredefinedAsset[] = [
-          {
-            ticker: 'AAPL',
-            name: 'Apple Inc.',
-            type: 'CEDEAR',
-            logo: `https://icons.com.ar/icons/cedears/AAPL.png`
-          },
-          {
-            ticker: 'MELI',
-            name: 'MercadoLibre Inc.',
-            type: 'CEDEAR',
-            logo: `https://icons.com.ar/icons/cedears/MELI.png`
-          }
-        ];
-        // Agregar acciones manualmente si se desea
-        const acciones: PredefinedAsset[] = [
-          {
-            ticker: 'GGAL',
-            name: 'Grupo Financiero Galicia',
-            type: 'Acción',
-            logo: `https://icons.com.ar/icons/acciones/GGAL.png`
-          },
-          {
-            ticker: 'YPFD',
-            name: 'YPF S.A.',
-            type: 'Acción',
-            logo: `https://icons.com.ar/icons/acciones/YPFD.png`
-          }
-        ];
+        // CEDEARs desde la nueva API
+        const cedearRes = await fetch('https://api.cedears.ar/cedears');
+        const cedearData = await cedearRes.json();
+        const cedears: PredefinedAsset[] = cedearData.map((item: any) => ({
+          ticker: item.ticker,
+          name: item.name,
+          type: 'CEDEAR',
+          logo: item.icon
+        }));
+        // Acciones desde nueva API
+        const accionesRes = await fetch('https://api.cedears.ar/acciones');
+        const accionesData = await accionesRes.json();
+        const acciones: PredefinedAsset[] = accionesData.map((item: any) => ({
+          ticker: item.ticker,
+          name: item.name,
+          type: 'Acción',
+          logo: item.icon
+        }));
         setPredefinedAssets([...formattedAssets, ...cedears, ...acciones]);
       } catch (error) {
-        console.error('Error fetching crypto assets', error);
+        console.error('Error fetching assets', error);
       }
     };
     fetchAssets();
@@ -161,121 +149,37 @@ const Portfolio: React.FC = () => {
 
         if (error) throw error;
 
-        // Insertar 5 inversiones mock (2 CEDEARs, 2 Cripto, 1 Acción)
-        const mockedInvestments: Investment[] = [
-          {
-            id: 'mock-btc',
-            ticker: 'BTC',
-            name: 'Bitcoin',
-            type: 'Cripto',
-            quantity: 0.05,
-            purchasePrice: 30000,
-            currentPrice: 35000,
-            allocation: 20,
-            purchaseDate: '2024-02-14',
-            currency: 'USD',
-            isFavorite: true
-          },
-          {
-            id: 'mock-eth',
-            ticker: 'ETH',
-            name: 'Ethereum',
-            type: 'Cripto',
-            quantity: 0.2,
-            purchasePrice: 2000,
-            currentPrice: 2200,
-            allocation: 10,
-            purchaseDate: '2024-03-01',
-            currency: 'USD'
-          },
-          {
-            id: 'mock-aapl',
-            ticker: 'AAPL',
-            name: 'Apple Inc.',
-            type: 'CEDEAR',
-            quantity: 3,
-            purchasePrice: 1500,
-            currentPrice: 1800,
-            allocation: 25,
-            purchaseDate: '2024-02-10',
-            currency: 'ARS'
-          },
-          {
-            id: 'mock-meli',
-            ticker: 'MELI',
-            name: 'MercadoLibre Inc.',
-            type: 'CEDEAR',
-            quantity: 2,
-            purchasePrice: 4000,
-            currentPrice: 4700,
-            allocation: 25,
-            purchaseDate: '2024-03-02',
-            currency: 'ARS'
-          },
-          {
-            id: 'mock-ggal',
-            ticker: 'GGAL',
-            name: 'Grupo Financiero Galicia',
-            type: 'Acción',
-            quantity: 5,
-            purchasePrice: 500,
-            currentPrice: 540,
-            allocation: 20,
-            purchaseDate: '2024-01-30',
-            currency: 'ARS'
-          },
-          {
-            id: 'mock-btc-2',
-            ticker: 'BTC',
-            name: 'Bitcoin',
-            type: 'Cripto',
-            quantity: 0.03,
-            purchasePrice: 30000,
-            currentPrice: 35000,
-            allocation: 10,
-            purchaseDate: '2024-03-01',
-            currency: 'USD'
-          },
-          {
-            id: 'mock-btc-3',
-            ticker: 'BTC',
-            name: 'Bitcoin',
-            type: 'Cripto',
-            quantity: 0.02,
-            purchasePrice: 30000,
-            currentPrice: 35000,
-            allocation: 5,
-            purchaseDate: '2024-03-10',
-            currency: 'USD'
-          },
-          {
-            id: 'mock-eth-2',
-            ticker: 'ETH',
-            name: 'Ethereum',
-            type: 'Cripto',
-            quantity: 0.1,
-            purchasePrice: 2000,
-            currentPrice: 2200,
-            allocation: 5,
-            purchaseDate: '2024-03-15',
-            currency: 'USD'
-          },
-          {
-            id: 'mock-sol',
-            ticker: 'SOL',
-            name: 'Solana',
-            type: 'Cripto',
-            quantity: 1.5,
-            purchasePrice: 90,
-            currentPrice: 120,
-            allocation: 8,
-            purchaseDate: '2024-03-20',
-            currency: 'USD'
-          }
-        ];
-        data.unshift(...mockedInvestments);
-
-        setInvestments(data as Investment[]);
+        // Usar los datos reales de la base como fuente de verdad.
+        // Actualizar currentPrice, name y ticker desde predefinedAssets.
+        let updatedInvestments: Investment[] = [];
+        if (data && Array.isArray(data)) {
+          updatedInvestments = data.map((inv: any) => {
+            // Buscar el asset correspondiente en predefinedAssets
+            const asset = predefinedAssets.find(
+              (a) => a.ticker === inv.ticker && a.type === inv.type
+            );
+            let currentPrice = inv.current_price || inv.currentPrice || 0;
+            // Si hay asset, actualizar currentPrice según tipo
+            if (asset) {
+              if (asset.type === 'Cripto') {
+                // Buscar precio actual de la cripto en predefinedAssets
+                // Suponemos que el precio actual está en una propiedad extra, si no, dejar el existente
+                // Pero como predefinedAssets solo tiene logo, ticker, name, type, deberíamos obtener el precio de alguna manera
+                // Como no está, dejamos el currentPrice como está (esto requiere mejora si se quiere obtener el precio real en tiempo real)
+              } else if (asset.type === 'Acción' || asset.type === 'CEDEAR') {
+                // Similar, no hay precio actual en predefinedAssets, dejar el currentPrice como está
+              }
+            }
+            return {
+              ...inv,
+              name: asset ? asset.name : inv.name,
+              ticker: asset ? asset.ticker : inv.ticker,
+              type: inv.type,
+              currentPrice: typeof currentPrice === 'number' ? currentPrice : 0,
+            };
+          });
+        }
+        setInvestments(updatedInvestments);
         setLoading(false);
       } catch (error) {
         console.error('Error fetching investments:', error);
@@ -284,7 +188,7 @@ const Portfolio: React.FC = () => {
     };
 
     fetchInvestments();
-  }, [user]);
+  }, [user, predefinedAssets]);
   // Toggle favorite
   const toggleFavorite = (id: string) => {
     setInvestments(prev =>
@@ -296,14 +200,7 @@ const Portfolio: React.FC = () => {
 
   const handleAssetSelect = async (asset: PredefinedAsset) => {
     setFetchingPrice(true);
-    setNewInvestment(prev => ({
-      ...prev,
-      ticker: asset.ticker,
-      name: asset.name,
-      type: asset.type,
-      currency: asset.type === 'Cripto' ? 'USD' : 'ARS'
-    }));
-
+    setSelectedAsset(asset); // Asegura que el asset seleccionado esté disponible para el renderizado del modal
     try {
       let price = 0;
       if (asset.type === 'Cripto') {
@@ -312,23 +209,43 @@ const Portfolio: React.FC = () => {
         const data = await res.json();
         price = data[asset.ticker.toLowerCase()]?.usd || 0;
         // No multiplicar por CCL para Cripto
-      } else if (asset.type === 'CEDEAR' || asset.type === 'Acción') {
-        // Precio simulado para activos no cripto
-        price = Math.random() * 5000;
-        try {
-          const cclRes = await fetch('https://dolarapi.com/v1/dolares');
-          const cclData = await cclRes.json();
-          const cclPrice = cclData.find((d: any) => d.casa === 'contadoconliqui')?.venta || 1100;
-          price = price * cclPrice;
-        } catch (err) {
-          console.error('No se pudo obtener el precio CCL. Usando valor por defecto.', err);
+      } else if (asset.type === 'Acción') {
+        const accionesRes = await fetch('https://api.cedears.ar/acciones');
+        const accionesData = await accionesRes.json();
+        const found = accionesData.find((a: any) => a.ticker === asset.ticker);
+        if (found && found.ars?.c) {
+          price = found.ars.c;
+        } else {
+          throw new Error('No se encontró precio para esta acción');
+        }
+      } else if (asset.type === 'CEDEAR') {
+        const cedearsRes = await fetch('https://api.cedears.ar/cedears');
+        const cedearsData = await cedearsRes.json();
+        const found = cedearsData.find((c: any) => c.ticker === asset.ticker);
+        if (found && found.ars?.c) {
+          price = found.ars.c;
+        } else {
+          throw new Error('No se encontró precio para este CEDEAR');
         }
       }
 
       setCurrentPrice(price);
+      // --- Ajustar purchasePrice según currency ---
+      const currency = asset.type === 'Cripto' ? 'USD' : 'ARS';
+      const adjustedPrice =
+        asset.type === 'Cripto'
+          ? price
+          : currency === 'USD' && cclPrice
+          ? price / cclPrice
+          : price;
+      // Set all relevant fields at una sola vez, incluyendo purchasePrice
       setNewInvestment(prev => ({
         ...prev,
-        purchasePrice: price
+        ticker: asset.ticker,
+        name: asset.name,
+        type: asset.type,
+        currency: currency,
+        purchasePrice: adjustedPrice,
       }));
     } catch (error) {
       console.error('Error fetching price:', error);
@@ -336,6 +253,23 @@ const Portfolio: React.FC = () => {
       setFetchingPrice(false);
     }
   };
+
+  // Recalcular purchasePrice cuando cambia la moneda
+  useEffect(() => {
+    if (!currentPrice || !selectedAsset) return;
+    let adjustedPrice = 0;
+    if (selectedAsset.type === 'Cripto') {
+      adjustedPrice = currentPrice;
+    } else if (selectedAsset.type === 'Acción' || selectedAsset.type === 'CEDEAR') {
+      if (newInvestment.currency === 'ARS') {
+        adjustedPrice = parseFloat(currentPrice.toFixed(2)); // Mantener en ARS sin convertir
+      } else if (newInvestment.currency === 'USD' && cclPrice) {
+        adjustedPrice = parseFloat((currentPrice / cclPrice).toFixed(2)); // Convertir de ARS a USD
+      }
+    }
+    setNewInvestment(prev => ({ ...prev, purchasePrice: adjustedPrice }));
+    // eslint-disable-next-line
+  }, [newInvestment.currency]);
 
   const handleAddInvestment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -409,7 +343,7 @@ const Portfolio: React.FC = () => {
         quantity: 0,
         purchasePrice: 0,
         purchaseDate: new Date().toISOString().split('T')[0],
-        currency: 'ARS'
+        currency: 'ARS',
       });
       setCurrentPrice(null);
 
@@ -484,7 +418,6 @@ const Portfolio: React.FC = () => {
       'Precio Compra',
       'Cambio $',
       'Cambio %',
-      'Ratio',
       'Cantidad',
       'Tenencia',
       'Fecha Compra',
@@ -494,10 +427,6 @@ const Portfolio: React.FC = () => {
       const priceChangeData = calculateReturn(inv.currentPrice, inv.purchasePrice);
       const priceChange = priceChangeData.amount;
       const percentageChange = priceChangeData.percentage;
-      const ratioValue =
-        inv.type === 'CEDEAR' && inv.purchasePrice && inv.purchasePrice > 0
-          ? (inv.currentPrice / inv.purchasePrice).toFixed(2) + ':1'
-          : inv.ratio ?? '-';
       const tenencia = inv.currentPrice * inv.quantity;
       return [
         inv.ticker,
@@ -507,7 +436,6 @@ const Portfolio: React.FC = () => {
         inv.purchasePrice,
         priceChange.toFixed(2),
         percentageChange.toFixed(2) + '%',
-        ratioValue,
         inv.quantity,
         tenencia.toFixed(2),
         inv.purchaseDate
@@ -664,9 +592,6 @@ const Portfolio: React.FC = () => {
     }
   }, 0);
   const totalCurrencyToShow = showInARS ? 'ARS' : 'USD';
-
-  // Ratio (actual/purchase), PPC (precio promedio de compra), Tenencia (cantidad)
-  // Se agregan columnas Ratio, PPC y Tenencia si faltan
 
   useEffect(() => {
     window.onerror = function (message, source, lineno, colno, error) {
@@ -979,9 +904,6 @@ const Portfolio: React.FC = () => {
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Precio actual</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cambio $</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cambio %</th>
-                    {activeTypeFilter !== 'Cripto' && activeTypeFilter !== 'Acción' && (
-                        <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ratio</th>
-                    )}
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cantidad</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">PPC</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Tenencia</th>
@@ -1008,22 +930,18 @@ const Portfolio: React.FC = () => {
                     }
                     // Cálculos para las columnas de cambio con validaciones de seguridad
                     // Si mergeTransactions está activo, los datos ya están agrupados y calculados.
-                    let priceChange, priceChangePercent, isChangePositive, ratio, tenencia;
+                    let priceChange, priceChangePercent, isChangePositive, tenencia;
                     let displayCurrency = showInARS ? 'ARS' : 'USD';
                     let displayPriceChange, displayPPC, displayTenencia;
                     let tenenciaCurrency = displayCurrency;
                     let ppcCurrency = displayCurrency;
                     if (mergeTransactions) {
                       // Para agrupados: recalcular cantidad sumada, PPC ponderado, tenencia, cambio
-                      // priceChange: currentPrice agrupado - purchasePrice agrupado
                       priceChange = (investment.currentPrice ?? 0) - (investment.purchasePrice ?? 0);
                       priceChangePercent = investment.purchasePrice
                         ? (priceChange / investment.purchasePrice) * 100
                         : 0;
                       isChangePositive = priceChange >= 0;
-                      ratio = investment.purchasePrice && investment.purchasePrice > 0
-                        ? investment.currentPrice / investment.purchasePrice
-                        : 0;
                       tenencia = (investment.currentPrice ?? 0) * (investment.quantity ?? 0);
                       // Corregido: displayPriceChange ahora es la ganancia/pérdida total (por cantidad)
                       displayPriceChange = showInARS
@@ -1053,9 +971,6 @@ const Portfolio: React.FC = () => {
                         ? (priceChange / investment.purchasePrice) * 100
                         : 0;
                       isChangePositive = priceChange >= 0;
-                      ratio = investment.purchasePrice && investment.purchasePrice > 0
-                        ? investment.currentPrice / investment.purchasePrice
-                        : 0;
                       tenencia = (investment.currentPrice ?? 0) * (investment.quantity ?? 0);
                       displayCurrency = showInARS ? 'ARS' : 'USD';
                       // Corregido: displayPriceChange ahora es la ganancia/pérdida total (por cantidad)
@@ -1147,18 +1062,6 @@ const Portfolio: React.FC = () => {
                           {priceChangePercent.toFixed(2)}%
                         </span>
                           </td>
-                          {/* Ratio */}
-                          {activeTypeFilter !== 'Cripto' && activeTypeFilter !== 'Acción' && (
-                              <td className="py-4 px-4 text-center">
-                                {investment.type === 'CEDEAR'
-                                    ? (
-                                        <div className="px-2 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-800 inline-block">
-                                          {ratio.toFixed(2)}:1
-                                        </div>
-                                    )
-                                    : '-'}
-                              </td>
-                          )}
                           {/* Cantidad */}
                           <td className="py-4 px-4 text-center">{investment.quantity.toFixed(4)}</td>
                           {/* PPC */}
@@ -1263,7 +1166,21 @@ const Portfolio: React.FC = () => {
                 <div className="flex justify-between items-center mb-4">
                   <h3 className="text-2xl font-bold text-gray-900">📈 Agregar nueva inversión</h3>
                   <button
-                      onClick={() => setShowAddModal(false)}
+                      onClick={() => {
+                        setShowAddModal(false);
+                        setNewInvestment({
+                          ticker: '',
+                          name: '',
+                          type: 'CEDEAR',
+                          quantity: 0,
+                          purchasePrice: 0,
+                          purchaseDate: new Date().toISOString().split('T')[0],
+                          currency: 'ARS',
+                        });
+                        setSelectedAsset(null);
+                        setCurrentPrice(null);
+                        setAssetSearchTerm('');
+                      }}
                       className="text-gray-500 hover:text-gray-700 transition-colors"
                   >
                     <X size={20} />
@@ -1293,12 +1210,21 @@ const Portfolio: React.FC = () => {
                     <select
                         id="type"
                         value={newInvestment.type}
-                        onChange={(e) =>
-                            setNewInvestment((prev) => ({
-                              ...prev,
-                              type: e.target.value as 'Cripto' | 'CEDEAR' | 'Acción',
-                            }))
-                        }
+                        onChange={(e) => {
+                          const newType = e.target.value as 'Cripto' | 'CEDEAR' | 'Acción';
+                          setNewInvestment((prev) => ({
+                            ...prev,
+                            type: newType,
+                            ticker: '',
+                            name: '',
+                            quantity: 0,
+                            purchasePrice: 0,
+                            currency: newType === 'Cripto' ? 'USD' : 'ARS',
+                          }));
+                          setAssetSearchTerm('');
+                          setSelectedAsset(null);
+                          setCurrentPrice(null);
+                        }}
                         className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
                     >
                       <option value="CEDEAR">CEDEAR</option>
@@ -1313,53 +1239,61 @@ const Portfolio: React.FC = () => {
                     </label>
                     <div className="relative">
                       <div className="flex items-center gap-2 border border-gray-300 rounded-lg px-3 py-2 bg-white focus-within:ring-2 focus-within:ring-blue-500">
-                        {selectedAsset && (
-                            <img
-                                src={selectedAsset.logo}
-                                alt={selectedAsset.name}
-                                className="w-5 h-5 rounded-full object-contain"
-                            />
-                        )}
                         <input
-                            type="text"
-                            id="assetSearch"
-                            value={assetSearchTerm.length > 0 ? assetSearchTerm : (selectedAsset ? selectedAsset.ticker : '')}
-                            onChange={(e) => {
-                              setAssetSearchTerm(e.target.value);
-                              setSelectedAsset(null);
-                            }}
-                            placeholder="Buscar activo..."
-                            className="flex-1 outline-none bg-transparent text-sm text-gray-800"
-                            autoComplete="off"
+                          type="text"
+                          id="assetSearch"
+                          value={assetSearchTerm}
+                          onChange={(e) => {
+                            setAssetSearchTerm(e.target.value);
+                            setSelectedAsset(null);
+                          }}
+                          placeholder={selectedAsset ? `${selectedAsset.name} (${selectedAsset.ticker})` : 'Buscar activo...'}
+                          className="flex-1 outline-none bg-transparent text-sm text-gray-800"
+                          autoComplete="off"
                         />
                       </div>
                       {(assetSearchTerm.length > 0 && filteredAssets.length > 0) && (
-                          <ul className="absolute left-0 w-full z-50 bg-white border border-gray-200 mt-1 max-h-52 overflow-y-auto rounded-lg shadow-lg">
-                            {filteredAssets.map((asset) => (
-                                <li
-                                    key={asset.ticker}
-                                    onClick={() => {
-                                      handleAssetSelect(asset);
-                                      setSelectedAsset(asset);
-                                      setAssetSearchTerm('');
-                                    }}
-                                    className="flex items-center p-2 hover:bg-gray-100 cursor-pointer"
-                                >
-                                  <img
-                                      src={asset.logo}
-                                      alt={asset.name}
-                                      className="w-6 h-6 rounded-full mr-2 object-contain"
-                                      style={{ minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24 }}
-                                  />
-                                  <div>
-                                    <p className="text-sm font-medium text-gray-800">{asset.ticker}</p>
-                                    <p className="text-xs text-gray-500">{asset.name}</p>
-                                  </div>
-                                </li>
-                            ))}
-                          </ul>
+                        <ul className="absolute left-0 w-full z-50 bg-white border border-gray-200 mt-1 max-h-52 overflow-y-auto rounded-lg shadow-lg">
+                          {filteredAssets.map((asset) => (
+                            <li
+                              key={asset.ticker}
+                              onClick={() => {
+                                handleAssetSelect(asset);
+                                setSelectedAsset(asset);
+                                setAssetSearchTerm('');
+                              }}
+                              className="flex items-center p-2 hover:bg-gray-100 cursor-pointer"
+                            >
+                              <img
+                                src={asset.logo}
+                                alt={asset.name}
+                                className="w-6 h-6 rounded-full mr-2 object-contain"
+                                style={{ minWidth: 24, minHeight: 24, maxWidth: 24, maxHeight: 24 }}
+                              />
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">{asset.name}</p>
+                                <p className="text-xs text-gray-500">{asset.ticker}</p>
+                              </div>
+                            </li>
+                          ))}
+                        </ul>
                       )}
                     </div>
+                    {/* Mostrar el activo seleccionado debajo del input */}
+                    {selectedAsset && (
+                      <div className="flex items-center gap-3 mt-3 p-2 bg-gray-50 border border-gray-200 rounded-lg">
+                        <img
+                          src={selectedAsset.logo}
+                          alt={selectedAsset.name}
+                          className="w-7 h-7 rounded-full object-contain"
+                          style={{ minWidth: 28, minHeight: 28, maxWidth: 28, maxHeight: 28 }}
+                        />
+                        <div>
+                          <div className="font-semibold text-gray-800">{selectedAsset.name}</div>
+                          <div className="text-xs text-gray-500">{selectedAsset.ticker}</div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Fecha de compra */}
@@ -1391,11 +1325,36 @@ const Portfolio: React.FC = () => {
                         type="number"
                         id="quantity"
                         value={newInvestment.quantity || ''}
-                        onChange={(e) => setNewInvestment(prev => ({ ...prev, quantity: parseFloat(e.target.value) || 0 }))}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-                        step="any"
+                        step={newInvestment.type === 'Cripto' ? 'any' : '1'}
                         min="0"
+                        inputMode="decimal"
+                        onChange={(e) =>
+                          setNewInvestment((prev) => ({
+                            ...prev,
+                            quantity:
+                              newInvestment.type === 'Cripto'
+                                ? parseFloat(e.target.value.replace(',', '.')) || 0
+                                : Math.floor(Number(e.target.value.replace(',', ''))) || 0
+                          }))
+                        }
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
                     />
+                    {newInvestment.quantity > 0 && newInvestment.purchasePrice > 0 && cclPrice && (
+                      <div className="mt-3 px-4 py-2 rounded-md border border-gray-200 bg-gray-50 text-gray-700 text-sm">
+                        Esta compra equivale actualmente a:{' '}
+                        <strong className="text-gray-900">
+                          {newInvestment.currency === 'USD'
+                            ? `${(newInvestment.quantity * newInvestment.purchasePrice).toFixed(2)} USD`
+                            : `${(newInvestment.quantity * newInvestment.purchasePrice).toFixed(2)} ARS`}
+                        </strong>{' '}
+                        /{' '}
+                        <strong className="text-gray-900">
+                          {newInvestment.currency === 'USD'
+                            ? `${(newInvestment.quantity * newInvestment.purchasePrice * cclPrice).toFixed(2)} ARS`
+                            : `${(newInvestment.quantity * newInvestment.purchasePrice / cclPrice).toFixed(2)} USD`}
+                        </strong>
+                      </div>
+                    )}
                   </div>
 
                   <div className="grid grid-cols-2 gap-4">
@@ -1409,8 +1368,8 @@ const Portfolio: React.FC = () => {
                           onChange={(e) => setNewInvestment(prev => ({ ...prev, currency: e.target.value as 'USD' | 'ARS' }))}
                           className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
                       >
-                        <option value="ARS">ARS</option>
-                        <option value="USD">USD</option>
+                        <option value="ARS">🇦🇷 ARS</option>
+                        <option value="USD">🇺🇸 USD</option>
                       </select>
                     </div>
 
@@ -1424,7 +1383,12 @@ const Portfolio: React.FC = () => {
                             type="number"
                             id="purchasePrice"
                             value={newInvestment.purchasePrice || ''}
-                            onChange={(e) => setNewInvestment(prev => ({ ...prev, purchasePrice: parseFloat(e.target.value) || 0 }))}
+                            onChange={(e) =>
+                              setNewInvestment(prev => ({
+                                ...prev,
+                                purchasePrice: parseFloat(e.target.value.replace(',', '.')) || 0
+                              }))
+                            }
                             className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
                             step="any"
                             min="0"
@@ -1435,20 +1399,6 @@ const Portfolio: React.FC = () => {
                             <Loader size={12} className="animate-spin mr-1" />
                             Obteniendo precio actual...
                           </p>
-                      )}
-                      {currentPrice && !fetchingPrice && (
-                          <div className="mt-2 flex items-center justify-between rounded-lg bg-blue-100 px-4 py-2 border border-blue-300 text-blue-900 text-sm">
-                            <div className="flex items-center gap-2">
-                              <DollarSign size={16} className="text-blue-600" />
-                              <span className="font-medium">Precio actual sugerido:</span>
-                              <strong>
-                                {formatCurrency(currentPrice, newInvestment.currency)}
-                              </strong>
-                            </div>
-                            {newInvestment.type === 'CEDEAR' && (
-                                <span className="text-xs text-gray-600 ml-2 italic">(convertido con CCL)</span>
-                            )}
-                          </div>
                       )}
                     </div>
                   </div>
