@@ -133,13 +133,11 @@ const Portfolio: React.FC = () => {
     fetchAssets();
   }, []);
 
+  // 1. Efecto que carga inversiones desde Supabase apenas el usuario está disponible
   useEffect(() => {
-    const fetchInvestments = async () => {
-      if (!user || !user.id) {
-        console.warn('Usuario no autenticado o user.id es null');
-        return;
-      }
+    if (!user?.id) return;
 
+    const fetchInvestments = async () => {
       try {
         const { data, error } = await supabase
           .from('investments')
@@ -149,46 +147,41 @@ const Portfolio: React.FC = () => {
 
         if (error) throw error;
 
-        // Usar los datos reales de la base como fuente de verdad.
-        // Actualizar currentPrice, name y ticker desde predefinedAssets.
-        let updatedInvestments: Investment[] = [];
-        if (data && Array.isArray(data)) {
-          updatedInvestments = data.map((inv: any) => {
-            // Buscar el asset correspondiente en predefinedAssets
-            const asset = predefinedAssets.find(
-              (a) => a.ticker === inv.ticker && a.type === inv.type
-            );
-            let currentPrice = inv.current_price || inv.currentPrice || 0;
-            // Si hay asset, actualizar currentPrice según tipo
-            if (asset) {
-              if (asset.type === 'Cripto') {
-                // Buscar precio actual de la cripto en predefinedAssets
-                // Suponemos que el precio actual está en una propiedad extra, si no, dejar el existente
-                // Pero como predefinedAssets solo tiene logo, ticker, name, type, deberíamos obtener el precio de alguna manera
-                // Como no está, dejamos el currentPrice como está (esto requiere mejora si se quiere obtener el precio real en tiempo real)
-              } else if (asset.type === 'Acción' || asset.type === 'CEDEAR') {
-                // Similar, no hay precio actual en predefinedAssets, dejar el currentPrice como está
-              }
-            }
-            return {
-              ...inv,
-              name: asset ? asset.name : inv.name,
-              ticker: asset ? asset.ticker : inv.ticker,
-              type: inv.type,
-              currentPrice: typeof currentPrice === 'number' ? currentPrice : 0,
-            };
-          });
-        }
-        setInvestments(updatedInvestments);
+        const investments: Investment[] = data.map((inv: any) => ({
+          ...inv,
+          currentPrice: inv.current_price || inv.currentPrice || 1, // fallback si no hay precio actual
+        }));
+
+        setInvestments(investments);
         setLoading(false);
-      } catch (error) {
-        console.error('Error fetching investments:', error);
+      } catch (err) {
+        console.error("Error fetching investments:", err);
         setLoading(false);
       }
     };
 
     fetchInvestments();
-  }, [user, predefinedAssets]);
+  }, [user]);
+
+  // 2. Efecto que enriquece con datos de predefinedAssets si están disponibles
+  useEffect(() => {
+    if (!predefinedAssets.length) return;
+
+    setInvestments((prev) =>
+      prev.map((inv) => {
+        const asset = predefinedAssets.find(
+          (a) => a.ticker === inv.ticker && a.type === inv.type
+        );
+
+        return {
+          ...inv,
+          name: asset?.name || inv.name,
+          ticker: asset?.ticker || inv.ticker,
+          currentPrice: typeof inv.currentPrice === 'number' ? inv.currentPrice : 1,
+        };
+      })
+    );
+  }, [predefinedAssets]);
   // Toggle favorite
   const toggleFavorite = (id: string) => {
     setInvestments(prev =>
@@ -458,9 +451,9 @@ const Portfolio: React.FC = () => {
   const filteredInvestments = investments
     .filter(investment =>
       investment.ticker &&
-      typeof investment.currentPrice === 'number' &&
-      typeof investment.purchasePrice === 'number' &&
-      typeof investment.quantity === 'number' &&
+      !isNaN(investment.currentPrice) &&
+      !isNaN(investment.purchasePrice) &&
+      !isNaN(investment.quantity) &&
       (activeTypeFilter === 'Todos' || investment.type === activeTypeFilter) &&
       (investment.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||
         investment.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -921,9 +914,9 @@ const Portfolio: React.FC = () => {
                   <tbody>
                   {displayedInvestments.map((investment) => {
                     if (
-                        typeof investment.currentPrice !== 'number' ||
-                        typeof investment.purchasePrice !== 'number' ||
-                        typeof investment.quantity !== 'number'
+                        isNaN(investment.currentPrice) ||
+                        isNaN(investment.purchasePrice) ||
+                        isNaN(investment.quantity)
                     ) {
                       console.warn('Inversión inválida detectada y omitida:', investment);
                       return null;

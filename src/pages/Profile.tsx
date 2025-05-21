@@ -73,17 +73,38 @@ const Profile: React.FC = () => {
     setLoadingChange(true);
 
     try {
-      // Here you would implement the actual password change logic
-      // For now, we'll just simulate success
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const { createClient } = await import('@supabase/supabase-js');
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+      const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || '';
+      const supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+      const { error: authError } = await supabase.auth.signInWithPassword({
+        email: user?.email!,
+        password: currentPassword,
+      });
+
+      if (authError) {
+        setError('La contraseña actual es incorrecta');
+        setLoadingChange(false);
+        return;
+      }
+
+      const { error: updateError } = await supabase.auth.updateUser({ password: newPassword });
+
+      if (updateError) {
+        throw new Error(updateError.message || 'Error desconocido al actualizar la contraseña');
+      }
 
       setSuccess('Contraseña actualizada exitosamente');
+      setTimeout(() => {
+        window.location.href = '/profile';
+      }, 3000);
       setIsChangingPassword(false);
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (error) {
-      setError('Error al cambiar la contraseña. Por favor intente nuevamente.');
+      setError(error instanceof Error ? error.message : 'Error al cambiar la contraseña. Por favor intente nuevamente.');
     } finally {
       setLoadingChange(false);
     }
