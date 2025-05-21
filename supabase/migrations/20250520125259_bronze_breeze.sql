@@ -33,7 +33,7 @@ CREATE TABLE IF NOT EXISTS investments (
   type text NOT NULL,
   quantity numeric NOT NULL,
   purchase_price numeric NOT NULL,
-  current_price numeric NOT NULL,
+  current_price numeric,
   purchase_date date NOT NULL,
   currency text NOT NULL,
   is_favorite boolean DEFAULT false,

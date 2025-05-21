@@ -34,7 +34,7 @@ CREATE TABLE IF NOT EXISTS investments (
   type text NOT NULL CHECK (type IN ('Cripto', 'Acción', 'CEDEAR')),
   quantity numeric NOT NULL,
   purchase_price numeric NOT NULL,
-  current_price numeric NOT NULL DEFAULT 0,
+  current_price numeric DEFAULT 0,
   purchase_date date NOT NULL,
   currency text NOT NULL CHECK (currency IN ('USD', 'ARS')),
   is_favorite boolean DEFAULT false,
