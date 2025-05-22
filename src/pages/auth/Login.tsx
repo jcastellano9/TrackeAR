@@ -31,7 +31,8 @@ const Login: React.FC = () => {
       const { error: signInError } = await signIn(email, password);
 
       if (signInError) {
-        throw new Error(signInError.message || 'Error al iniciar sesión');
+        setError('Correo o contraseña incorrectos.');
+        return;
       }
 
       navigate('/');

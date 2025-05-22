@@ -148,8 +148,16 @@ const Portfolio: React.FC = () => {
         if (error) throw error;
 
         const investments: Investment[] = data.map((inv: any) => ({
-          ...inv,
-          currentPrice: inv.current_price || inv.currentPrice || 1, // fallback si no hay precio actual
+          id: inv.id,
+          ticker: inv.ticker,
+          name: inv.name,
+          type: inv.type,
+          quantity: inv.quantity,
+          purchasePrice: inv.purchase_price,
+          purchaseDate: inv.purchase_date,
+          currency: inv.currency,
+          isFavorite: inv.is_favorite,
+          currentPrice: inv.current_price || 1,
         }));
 
         setInvestments(investments);
@@ -353,7 +361,19 @@ const Portfolio: React.FC = () => {
               .eq('user_id', user.id)
               .order('created_at', { ascending: false });
           if (error) throw error;
-          setInvestments(data as Investment[]);
+          const investments: Investment[] = data.map((inv: any) => ({
+            id: inv.id,
+            ticker: inv.ticker,
+            name: inv.name,
+            type: inv.type,
+            quantity: inv.quantity,
+            purchasePrice: inv.purchase_price,
+            purchaseDate: inv.purchase_date,
+            currency: inv.currency,
+            isFavorite: inv.is_favorite,
+            currentPrice: inv.current_price || 1,
+          }));
+          setInvestments(investments);
         } catch (error) {
           console.error('Error fetching investments after add:', error);
         }
