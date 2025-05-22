@@ -1008,13 +1008,14 @@ const Simulator: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  {['fixed', 'wallet'].includes(simulationType) && (
-                    <div className={`mt-4 p-3 rounded-lg border text-sm ${
-                      simulationType === 'fixed'
-                        ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200'
-                        : 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-200'
-                    }`}>
-                      Recordá que la <strong>TNA puede variar</strong> según el banco, si sos cliente y las condiciones de la economía local. Las tasas pueden subir o bajar en función de decisiones del BCRA, inflación o políticas gubernamentales.
+                  {simulationType === 'fixed' && (
+                    <div className="mt-4 p-3 rounded-lg border text-sm bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200">
+                      Este cálculo utiliza <strong>interés compuesto diario</strong> para estimar el rendimiento. En la práctica, los plazos fijos suelen capitalizar mensualmente. La <strong>TNA puede variar</strong> según el banco, condiciones de cliente o decisiones del BCRA.
+                    </div>
+                  )}
+                  {simulationType === 'wallet' && (
+                    <div className="mt-4 p-3 rounded-lg border text-sm bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-200">
+                      Las billeteras virtuales remuneradas suelen liquidar rendimientos diarios. Este simulador utiliza <strong>interés compuesto diario</strong> sobre la TNA publicada por cada plataforma.
                     </div>
                   )}
                 </div>

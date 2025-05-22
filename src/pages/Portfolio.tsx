@@ -83,6 +83,8 @@ const Portfolio: React.FC = () => {
 
   // Predefined assets state (dynamic)
   const [predefinedAssets, setPredefinedAssets] = useState<PredefinedAsset[]>([]);
+  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
+
   // Fetch CCL price separately
   useEffect(() => {
     const fetchCCL = async () => {
@@ -165,6 +167,9 @@ const Portfolio: React.FC = () => {
 
         const investments: Investment[] = data.map((inv: any) => {
           const normalizedType = inv.type ? inv.type.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
+          const currentPrice = inv.current_price !== undefined && inv.current_price !== null
+            ? inv.current_price
+            : inv.purchase_price;
           return {
             id: inv.id,
             ticker: inv.ticker,
@@ -175,7 +180,7 @@ const Portfolio: React.FC = () => {
             purchaseDate: inv.purchase_date,
             currency: inv.currency,
             isFavorite: inv.is_favorite,
-            currentPrice: inv.current_price || 1,
+            currentPrice: currentPrice,
           };
         });
 
@@ -213,15 +218,10 @@ const Portfolio: React.FC = () => {
       prev.map((inv) => {
         const key = normalizeType(inv.type) + '-' + inv.ticker.toUpperCase();
         const asset = assetMap.get(key);
-        console.log('Investment:', inv, 'Busca con clave:', key, 'Asset encontrado:', asset);
-        if (!asset) {
-          console.warn('No se encontró asset para', key, '- Se deja currentPrice anterior:', inv.currentPrice);
-        }
         return {
           ...inv,
           name: asset?.name || inv.name,
           ticker: asset?.ticker || inv.ticker,
-          currentPrice: asset?.price !== undefined ? asset.price : (inv.currentPrice !== undefined ? inv.currentPrice : null),
         };
       })
     );
@@ -432,6 +432,9 @@ const Portfolio: React.FC = () => {
           };
           const investments: Investment[] = data.map((inv: any) => {
             const normalizedType = inv.type ? inv.type.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
+            const currentPrice = inv.current_price !== undefined && inv.current_price !== null
+              ? inv.current_price
+              : inv.purchase_price;
             return {
               id: inv.id,
               ticker: inv.ticker,
@@ -442,7 +445,7 @@ const Portfolio: React.FC = () => {
               purchaseDate: inv.purchase_date,
               currency: inv.currency,
               isFavorite: inv.is_favorite,
-              currentPrice: inv.current_price || 1,
+              currentPrice: currentPrice,
             };
           });
           setInvestments(investments);
@@ -625,10 +628,11 @@ const Portfolio: React.FC = () => {
           } else {
             const prevQty = acc[key].quantity;
             const newQty = prevQty + inv.quantity;
-
-            acc[key].quantity = newQty;
+            // PPC ponderado
             acc[key].purchasePrice =
               (acc[key].purchasePrice * prevQty + inv.purchasePrice * inv.quantity) / newQty;
+            acc[key].quantity = newQty;
+            // Precio actual: promedio ponderado
             acc[key].currentPrice =
               (acc[key].currentPrice * prevQty + inv.currentPrice * inv.quantity) / newQty;
             acc[key].allocation = (acc[key].allocation ?? 0) + (inv.allocation ?? 0);
@@ -664,13 +668,13 @@ const Portfolio: React.FC = () => {
   };
 
   // Calcular totales en ARS y USD y visualización dinámica
-  const totalARS = investments.reduce((acc, inv) => {
+  const totalARS = displayedInvestments.reduce((acc, inv) => {
     if (inv.currency === 'ARS') return acc + inv.currentPrice * inv.quantity;
     if (inv.currency === 'USD' && cclPrice) return acc + inv.currentPrice * inv.quantity * cclPrice;
     return acc;
   }, 0);
 
-  const totalUSD = investments
+  const totalUSD = displayedInvestments
       .filter((inv) => inv.currency === 'USD')
       .reduce((acc, inv) => acc + inv.currentPrice * inv.quantity, 0);
 
@@ -693,6 +697,21 @@ const Portfolio: React.FC = () => {
     window.onerror = function (message, source, lineno, colno, error) {
       console.error("Global Error:", { message, source, lineno, colno, error });
     };
+  }, []);
+
+  useEffect(() => {
+    const fetchMarketPrices = async () => {
+      const prices: Record<string, number> = {};
+      // Ejemplo para cripto
+      const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd');
+      const data = await res.json();
+      data.forEach((coin: any) => {
+        prices['Cripto-' + coin.symbol.toUpperCase()] = coin.current_price;
+      });
+      // Repite para CEDEARs y Acciones...
+      setMarketPrices(prices);
+    };
+    fetchMarketPrices();
   }, []);
 
   console.log("Portfolio renderizado");
@@ -789,18 +808,8 @@ const Portfolio: React.FC = () => {
           {/* Valor Total del Portafolio (nuevo: global, color según ganancia/pérdida global) */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center col-span-full md:col-span-2 md:col-start-3 ${
             (() => {
-              const totalActual = investments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
-                if (showInARS) {
-                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
-                  if (i.currency === 'ARS') return acc + val;
-                } else {
-                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
-                  if (i.currency === 'USD') return acc + val;
-                }
-                return acc;
-              }, 0);
-              const totalInvertido = investments.reduce((acc, i) => {
+              const totalActual = totalToShow;
+              const totalInvertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
                 if (showInARS) {
                   if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
@@ -818,37 +827,24 @@ const Portfolio: React.FC = () => {
           }`}>
             <h3>Valor Total del Portafolio</h3>
             <p className="text-xl font-bold mt-1 text-current">
-              {formatCurrency(
-                investments.reduce((acc, i) => {
-                  const val = i.currentPrice * i.quantity;
-                  if (showInARS) {
-                    if (i.currency === 'USD') return cclPrice ? acc + val * cclPrice : acc;
-                    if (i.currency === 'ARS') return acc + val;
-                  } else {
-                    if (i.currency === 'ARS') return cclPrice ? acc + val / cclPrice : acc;
-                    if (i.currency === 'USD') return acc + val;
-                  }
-                  return acc;
-                }, 0),
-                showInARS ? 'ARS' : 'USD'
-              )}
+              {formatCurrency(totalToShow, showInARS ? 'ARS' : 'USD')}
             </p>
           </div>
 
           {/* Actual */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
-              const actual = displayedInvestments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
-                return showInARS
-                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
-                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
-              }, 0);
+              const actual = totalToShow;
               const invertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
-                return showInARS
-                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
-                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+                if (showInARS) {
+                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                  if (i.currency === 'ARS') return acc + val;
+                } else {
+                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                  if (i.currency === 'USD') return acc + val;
+                }
+                return acc;
               }, 0);
               return actual >= invertido
                 ? 'bg-green-50 text-green-700'
@@ -857,32 +853,24 @@ const Portfolio: React.FC = () => {
           }`}>
             <h3>Actual</h3>
             <p className="text-xl font-bold mt-1">
-              {formatCurrency(
-                displayedInvestments.reduce((acc, i) => {
-                  const val = i.currentPrice * i.quantity;
-                  return showInARS
-                    ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
-                    : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
-                }, 0),
-                totalCurrencyToShow
-              )}
+              {formatCurrency(totalToShow, totalCurrencyToShow)}
             </p>
           </div>
 
           {/* Resultado */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
-              const actual = displayedInvestments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
-                return showInARS
-                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
-                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
-              }, 0);
+              const actual = totalToShow;
               const invertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
-                return showInARS
-                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
-                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+                if (showInARS) {
+                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                  if (i.currency === 'ARS') return acc + val;
+                } else {
+                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                  if (i.currency === 'USD') return acc + val;
+                }
+                return acc;
               }, 0);
               return actual >= invertido
                 ? 'bg-green-50 text-green-700'
@@ -893,20 +881,20 @@ const Portfolio: React.FC = () => {
             {(() => {
               const invertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
-                return showInARS
-                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
-                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+                if (showInARS) {
+                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                  if (i.currency === 'ARS') return acc + val;
+                } else {
+                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                  if (i.currency === 'USD') return acc + val;
+                }
+                return acc;
               }, 0);
-              const actual = displayedInvestments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
-                return showInARS
-                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
-                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
-              }, 0);
-              const diff = actual - invertido;
+              const diff = totalToShow - invertido;
+              const percentage = invertido !== 0 ? ((diff / invertido) * 100).toFixed(2) : '0.00';
               return (
                 <p className="text-xl font-bold mt-1">
-                  {formatCurrency(diff, totalCurrencyToShow)} ({invertido !== 0 ? ((diff / invertido) * 100).toFixed(2) : '0.00'}%)
+                  {formatCurrency(diff, totalCurrencyToShow)} ({percentage}%)
                 </p>
               );
             })()}
@@ -1016,91 +1004,16 @@ const Portfolio: React.FC = () => {
                   </thead>
                   <tbody>
                   {displayedInvestments.map((investment) => {
-                    if (
-                        isNaN(investment.currentPrice) ||
-                        isNaN(investment.purchasePrice) ||
-                        isNaN(investment.quantity)
-                    ) {
-                      console.warn('Inversión inválida detectada y omitida:', investment);
-                      return null;
-                    }
-                    // Cálculos para las columnas de cambio con validaciones de seguridad
-                    // Si mergeTransactions está activo, los datos ya están agrupados y calculados.
-                    let priceChange, priceChangePercent, isChangePositive, tenencia;
-                    let displayCurrency = showInARS ? 'ARS' : 'USD';
-                    let displayPriceChange, displayPPC, displayTenencia;
-                    let tenenciaCurrency = displayCurrency;
-                    let ppcCurrency = displayCurrency;
-                    if (mergeTransactions) {
-                      // Para agrupados: recalcular cantidad sumada, PPC ponderado, tenencia, cambio
-                      priceChange = (investment.currentPrice ?? 0) - (investment.purchasePrice ?? 0);
-                      priceChangePercent = investment.purchasePrice
-                        ? (priceChange / investment.purchasePrice) * 100
-                        : 0;
-                      isChangePositive = priceChange >= 0;
-                      tenencia = (investment.currentPrice ?? 0) * (investment.quantity ?? 0);
-                      // Corregido: displayPriceChange ahora es la ganancia/pérdida total (por cantidad)
-                      displayPriceChange = showInARS
-                        ? investment.currency === 'USD' && cclPrice
-                          ? priceChange * investment.quantity * cclPrice
-                          : priceChange * investment.quantity
-                        : investment.currency === 'ARS' && cclPrice
-                          ? priceChange * investment.quantity / cclPrice
-                          : priceChange * investment.quantity;
-                      displayPPC = showInARS
-                        ? investment.currency === 'USD' && cclPrice
-                          ? investment.purchasePrice * cclPrice
-                          : investment.purchasePrice
-                        : investment.currency === 'ARS' && cclPrice
-                          ? investment.purchasePrice / cclPrice
-                          : investment.purchasePrice;
-                      displayTenencia = showInARS
-                        ? investment.currency === 'USD' && cclPrice
-                          ? tenencia * cclPrice
-                          : tenencia
-                        : investment.currency === 'ARS' && cclPrice
-                          ? tenencia / cclPrice
-                          : tenencia;
-                    } else {
-                      priceChange = (investment.currentPrice ?? 0) - (investment.purchasePrice ?? 0);
-                      priceChangePercent = investment.purchasePrice
-                        ? (priceChange / investment.purchasePrice) * 100
-                        : 0;
-                      isChangePositive = priceChange >= 0;
-                      tenencia = (investment.currentPrice ?? 0) * (investment.quantity ?? 0);
-                      displayCurrency = showInARS ? 'ARS' : 'USD';
-                      // Corregido: displayPriceChange ahora es la ganancia/pérdida total (por cantidad)
-                      displayPriceChange = showInARS
-                        ? investment.currency === 'USD' && cclPrice
-                          ? priceChange * investment.quantity * cclPrice
-                          : priceChange * investment.quantity
-                        : investment.currency === 'ARS' && cclPrice
-                          ? priceChange * investment.quantity / cclPrice
-                          : priceChange * investment.quantity;
-                      displayPPC = showInARS
-                        ? investment.currency === 'USD' && cclPrice
-                          ? investment.purchasePrice * cclPrice
-                          : investment.purchasePrice
-                        : investment.currency === 'ARS' && cclPrice
-                          ? investment.purchasePrice / cclPrice
-                          : investment.purchasePrice;
-                      displayTenencia = showInARS
-                        ? investment.currency === 'USD' && cclPrice
-                          ? tenencia * cclPrice
-                          : tenencia
-                        : investment.currency === 'ARS' && cclPrice
-                          ? tenencia / cclPrice
-                          : tenencia;
-                    }
-                    // --- Cálculo de asignación relativo al tipo de activo filtrado ---
-                    const filteredTotal = activeTypeFilter === 'Todos'
-                      ? displayedInvestments.reduce((acc, i) => acc + i.currentPrice * i.quantity, 0)
-                      : displayedInvestments
-                          .filter(i => i.type === activeTypeFilter)
-                          .reduce((acc, i) => acc + i.currentPrice * i.quantity, 0);
-                    const actualValue = investment.currentPrice * investment.quantity;
-                    const allocationPercent = filteredTotal > 0 ? (actualValue / filteredTotal) * 100 : 0;
-                    // ---------------------------------------------------------------
+                    const key = investment.type + '-' + investment.ticker.toUpperCase();
+                    const currentPrice = marketPrices[key] ?? investment.purchasePrice; // fallback si no hay precio de mercado
+
+                    // Cálculo de cambio
+                    const priceChange = (currentPrice - investment.purchasePrice) * investment.quantity;
+                    const priceChangePercent = investment.purchasePrice
+                      ? ((currentPrice - investment.purchasePrice) / investment.purchasePrice) * 100
+                      : 0;
+
+                    // Renderiza usando currentPrice, priceChange, priceChangePercent, etc.
                     return (
                         <tr
                             key={investment.id}
@@ -1142,42 +1055,29 @@ const Portfolio: React.FC = () => {
                                   : investment.currency === 'ARS' && cclPrice
                                     ? investment.currentPrice / cclPrice
                                     : investment.currentPrice,
-                                displayCurrency
+                                showInARS ? 'ARS' : 'USD'
                               )
                             )}
                           </td>
                           {/* Cambio $ */}
-                          <td className={`py-4 px-4 text-center ${isChangePositive ? 'text-green-600' : 'text-red-600'}`}>
-                            {isChangePositive ? '+' : ''}
-                            {formatCurrency(displayPriceChange, displayCurrency)}
+                          <td className={`py-4 px-4 text-center ${priceChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {priceChange >= 0 ? '+' : ''}
+                            {formatCurrency(priceChange, showInARS ? 'ARS' : 'USD')}
                           </td>
                           {/* Cambio % */}
-                          <td className={`py-4 px-4 text-center ${isChangePositive ? 'text-green-600' : 'text-red-600'}`}>
-                        <span className="inline-flex items-center">
-                          {isChangePositive
-                              ? <TrendingUp size={15} className="inline-block mr-1" />
-                              : <TrendingDown size={15} className="inline-block mr-1" />
-                          }
-                          {priceChangePercent >= 0 ? '+' : ''}
-                          {priceChangePercent.toFixed(2)}%
-                        </span>
+                          <td className={`py-4 px-4 text-center ${priceChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                            {priceChangePercent >= 0 ? '+' : ''}
+                            {priceChangePercent.toFixed(2)}%
                           </td>
                           {/* Cantidad */}
                           <td className="py-4 px-4 text-center">{investment.quantity.toFixed(4)}</td>
                           {/* PPC */}
                           <td className="py-4 px-4 text-gray-600 text-center">
-                            {formatCurrency(displayPPC, ppcCurrency)}
+                            {formatCurrency(investment.purchasePrice, showInARS ? 'ARS' : 'USD')}
                           </td>
                           {/* Tenencia */}
                           <td className="py-4 px-4 text-gray-600 text-center">
-                            {displayTenencia < 1
-                              ? new Intl.NumberFormat('es-AR', {
-                                  style: 'currency',
-                                  currency: tenenciaCurrency,
-                                  minimumFractionDigits: 1,
-                                  maximumFractionDigits: 1
-                                }).format(displayTenencia)
-                              : formatCurrency(displayTenencia, tenenciaCurrency)}
+                            {investment.currentPrice * investment.quantity}
                           </td>
                           {/* Fecha de compra */}
                           {!mergeTransactions && (
@@ -1201,11 +1101,11 @@ const Portfolio: React.FC = () => {
                                       ? 'bg-purple-600'
                                       : 'bg-[#0EA5E9]'
                                   }`}
-                                  style={{ width: `${allocationPercent.toFixed(0)}%` }}
+                                  style={{ width: `${(investment.currentPrice / (investment.currentPrice * investment.quantity)).toFixed(2)}%` }}
                                 />
                               </div>
                               <span className="text-sm text-gray-600">
-                                {allocationPercent.toFixed(0)}%
+                                {((investment.currentPrice - investment.purchasePrice) / investment.purchasePrice * 100).toFixed(2)}%
                               </span>
                             </div>
                           </td>
@@ -1529,12 +1429,7 @@ const Portfolio: React.FC = () => {
               </motion.div>
             </motion.div>
         )}
-      {/* Tabla de resumen total por tipo de activo (eliminada por nuevo diseño) */}
-
-
-
-
-    </div>
+      </div>
   );
 };
 
