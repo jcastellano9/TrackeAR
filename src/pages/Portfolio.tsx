@@ -69,6 +69,7 @@ const Portfolio: React.FC = () => {
 
   // Estado para edición de inversión
   const [editId, setEditId] = useState<string | null>(null);
+
   // New investment form state
   const [newInvestment, setNewInvestment] = useState<NewInvestment>({
     ticker: '',
@@ -821,15 +822,15 @@ const Portfolio: React.FC = () => {
                 investments.reduce((acc, i) => {
                   const val = i.currentPrice * i.quantity;
                   if (showInARS) {
-                    if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                    if (i.currency === 'USD') return cclPrice ? acc + val * cclPrice : acc;
                     if (i.currency === 'ARS') return acc + val;
                   } else {
-                    if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                    if (i.currency === 'ARS') return cclPrice ? acc + val / cclPrice : acc;
                     if (i.currency === 'USD') return acc + val;
                   }
                   return acc;
                 }, 0),
-                totalCurrencyToShow
+                showInARS ? 'ARS' : 'USD'
               )}
             </p>
           </div>

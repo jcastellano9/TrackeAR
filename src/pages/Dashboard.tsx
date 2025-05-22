@@ -5,15 +5,15 @@ import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { Line, Doughnut } from 'react-chartjs-2';
-import { 
-  Chart as ChartJS, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  Title, 
-  Tooltip, 
-  Legend, 
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
   ArcElement,
   Filler
 } from 'chart.js';
@@ -227,6 +227,8 @@ const Dashboard: React.FC = () => {
           .select('*')
           .eq('user_id', user.id);
 
+        console.log('Inversiones obtenidas:', data);
+
         if (error) throw error;
 
         // Simulando CCL fijo por ahora (mejor: traer desde una tabla de cotizaciones si la tenés)
@@ -236,9 +238,9 @@ const Dashboard: React.FC = () => {
         let current = 0;
 
         data.forEach((inv) => {
-          const quantity = inv.quantity;
-          const purchasePrice = inv.purchase_price;
-          const currentPrice = inv.current_price;
+          const quantity = Number(inv.quantity) || 0;
+          const purchasePrice = Number(inv.purchase_price) || 0;
+          const currentPrice = Number(inv.current_price) || 0;
           const currency = inv.currency;
 
           const purchaseTotal = quantity * purchasePrice;
@@ -252,6 +254,8 @@ const Dashboard: React.FC = () => {
             current += currentTotal * ccl;
           }
         });
+
+        console.log('Total invertido calculado:', invested);
 
         setTotalInvested(invested);
         setCurrentValue(current);
