@@ -11,7 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "@supabase/supabase-js": "^2.49.7",
+    "@supabase/supabase-js": "^2.49.5",
     "axios": "^1.6.7",
     "chart.js": "^4.4.1",
     "clsx": "^2.1.1",

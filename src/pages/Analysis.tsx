@@ -57,45 +57,6 @@ interface Sparkline {
   labels: string[];
 }
 
-// Mapa de íconos para bancos y billeteras (usando claves slugificadas)
-const quoteIconMap: Record<string, string> = {
-  'banco-comafi': '/icons/banco-comafi.svg',
-  'banco-galicia': '/icons/banco-galicia.svg',
-  'banco-hipotecario': '/icons/banco-hipotecario.svg',
-  'banco-macro': '/icons/banco-macro.svg',
-  'banco-nacion': '/icons/banco-nacion.svg',
-  'banco-nación': '/icons/banco-nacion.svg',
-  'banco-provincia': '/icons/banco-provincia.svg',
-  'banco-santander': '/icons/banco-santander.svg',
-  'banco-provincia-del-neuquen': '/icons/banco-provincia.svg',
-  'brubank': '/icons/brubank.svg',
-  'letsbit': '/icons/letsbit.svg',
-  'lb-finanzas': '/icons/letsbit.svg',
-  'naranja-x': '/icons/naranja-x.svg',
-  'naranja': '/icons/naranja-x.svg',
-  'plus': '/icons/plus-crypto.svg',
-  'plus-crypto': '/icons/plus-crypto.svg',
-  'plus-inversiones': '/icons/plus-crypto.svg',
-  'wallbit': '/icons/wallbit.svg',
-  'dolar-app': '/icons/dolar-app.svg',
-  'binance': '/icons/binance.svg',
-  'ripio': '/icons/ripio.svg',
-  'buenbit': '/icons/buenbit.svg',
-  'fiwind': '/icons/fiwind.svg',
-  'satoshi-tango': '/icons/satoshi-tango.svg',
-  'lemon': '/icons/lemon.svg',
-  'binace': '/icons/binance.svg',
-  'tienda-crypto': '/icons/tienda-crypto.svg',
-  'decrypto': '/icons/decrypto.svg',
-  'cocos-crypto': '/icons/cocos-crypto.svg',
-  'belo': '/icons/belo.svg',
-  'astropay': '/icons/astropay.svg',
-  'prex': '/icons/prex.svg',
-  'satoshitango': '/icons/satoshi-tango.svg',
-  'takenos': '/icons/takenos.svg',
-  'cocos': '/icons/cocos.svg'
-};
-
 // Retry function with exponential backoff
 const retryWithBackoff = async (
   fn: () => Promise<any>,
@@ -244,7 +205,6 @@ const Analysis: React.FC = () => {
               })
           : [];
 
-
         const comparaQuotes = Array.isArray(comparaRes.data)
           ? comparaRes.data.map((q: any) => ({
               name: q.name
@@ -256,9 +216,7 @@ const Analysis: React.FC = () => {
               spread: (typeof q.bid === 'number' && typeof q.ask === 'number')
                 ? +(q.ask - q.bid).toFixed(2) : null,
               source: q.url || 'ComparaDolar',
-              logo: quoteIconMap[
-                q.name.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '')
-              ] || q.logoUrl || null,
+              logo: q.logoUrl || null,
               is24x7: q.is24x7 || false,
               variation: 0
             }))
@@ -309,20 +267,17 @@ const Analysis: React.FC = () => {
           const token = tokens[i];
           if (!response.data || typeof response.data !== 'object') return [];
 
-          return Object.entries(response.data).map(([provider, info]: [string, any]) => {
-            const slug = info.prettyName.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
-            return {
-              name: `${info.prettyName} (${token.toUpperCase()})`,
-              buy: typeof info.bid === 'number' ? info.bid : null,
-              sell: typeof info.ask === 'number' ? info.ask : null,
-              spread: (typeof info.ask === 'number' && typeof info.bid === 'number')
-                ? +(info.ask - info.bid).toFixed(2) : null,
-              source: info.url || provider,
-              logo: quoteIconMap[slug] || info.logo || null,
-              is24x7: true,
-              variation: 0
-            };
-          });
+          return Object.entries(response.data).map(([provider, info]: [string, any]) => ({
+            name: `${info.prettyName} (${token.toUpperCase()})`,
+            buy: typeof info.bid === 'number' ? info.bid : null,
+            sell: typeof info.ask === 'number' ? info.ask : null,
+            spread: (typeof info.ask === 'number' && typeof info.bid === 'number')
+              ? +(info.ask - info.bid).toFixed(2) : null,
+            source: info.url || provider,
+            logo: info.logo || null,
+            is24x7: true,
+            variation: 0
+          }));
         });
 
         if (allQuotes.every(q => !q.buy && !q.sell)) {
@@ -378,13 +333,12 @@ const Analysis: React.FC = () => {
                 const name = `${provider.split(' ')
                   .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
                   .join(' ')} — paga con ${currencyLabel}`;
-                const slug = provider.toLowerCase().replace(/\s+/g, '-').replace(/[^\w-]/g, '');
                 formattedQuotes.push({
                   name,
                   buy: typeof quote.buy === 'number' ? quote.buy : null,
                   sell: typeof quote.sell === 'number' ? quote.sell : null,
                   spread: typeof quote.spread === 'number' ? +quote.spread.toFixed(6) : null,
-                  logo: quoteIconMap[slug] || info.logo || null,
+                  logo: info.logo || null,
                   source: info.url || 'pix.ferminrp.com',
                   is24x7: true,
                   variation: 0,

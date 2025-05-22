@@ -2,11 +2,12 @@
   # Update investments table schema
   
   1. Changes
+    - Add ratio column for CEDEAR ratios
     - Add type validation
     - Add currency validation
     - Add updated_at column with automatic updates
     - Maintain existing RLS policies
-
+    
   2. Security
     - Maintain RLS enabled
     - Update policies if they don't exist
@@ -26,6 +27,7 @@ CREATE TABLE IF NOT EXISTS investments (
   quantity numeric NOT NULL,
   purchase_price numeric NOT NULL,
   current_price numeric NOT NULL,
+  ratio text NULL,
   purchase_date date NOT NULL,
   currency text NOT NULL CHECK (currency IN ('ARS', 'USD')),
   is_favorite boolean DEFAULT false,

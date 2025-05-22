@@ -83,80 +83,15 @@ const Simulator: React.FC = () => {
         }));
         setBankRates(fixedData);
 
-        // Cuentas remuneradas - combinación de API general y billeteras FCI
-        const walletMap = new Map<string, Rate>();
-
-        // Primero, cargamos desde la API general
-        try {
-          const generalRes = await axios.get('https://api.comparatasas.ar/cuentas-remuneradas');
-          generalRes.data.forEach((item: any) => {
-            walletMap.set(item.nombre, {
-              entity: item.nombre,
-              rate: item.tna,
-              type: 'Cuenta Remunerada',
-              minimumAmount: item.limite,
-              logo: `https://icons.com.ar/logos/${item.nombre.toLowerCase().replace(/\s+/g, '-')}.svg`
-            });
-          });
-        } catch (e) {
-          console.error('Error al obtener cuentas remuneradas generales:', e);
-        }
-
-        // Luego, sobreescribimos (o sumamos) con las billeteras FCI dinámicas
-        const fondos: { nombre: string; url: string; logo: string }[] = [
-          {
-            nombre: 'Prex',
-            url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Allaria%20Ahorro%20-%20Clase%20A',
-            logo: 'https://icons.com.ar/logos/prex.svg'
-          },
-          {
-            nombre: 'Cocos',
-            url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Cocos%20Daruma%20Renta%20Mixta%20-%20Clase%20A',
-            logo: 'https://icons.com.ar/logos/cocos.svg'
-          },
-          {
-            nombre: 'Personal Pay',
-            url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Delta%20Pesos%20-%20Clase%20X',
-            logo: 'https://icons.com.ar/logos/personal-pay.svg'
-          },
-          {
-            nombre: 'MercadoPago',
-            url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Mercado%20Fondo%20-%20Clase%20A',
-            logo: 'https://icons.com.ar/logos/mercadopago.svg'
-          },
-          {
-            nombre: 'LB Finanzas',
-            url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/ST%20Zero%20-%20Clase%20D',
-            logo: 'https://icons.com.ar/logos/lb-finanzas.svg'
-          },
-          {
-            nombre: 'AstroPay',
-            url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/ST%20Zero%20-%20Clase%20D',
-            logo: 'https://icons.com.ar/logos/astropay.svg'
-          },
-          {
-            nombre: 'Lemon',
-            url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Fima%20Premium%20-%20Clase%20P',
-            logo: 'https://icons.com.ar/logos/lemoncash.svg'
-          },
-        ];
-
-        for (const fondo of fondos) {
-          try {
-            const res = await axios.get(fondo.url);
-            const tna = res.data?.detalle?.rendimientos?.diario?.tna || 0;
-            walletMap.set(fondo.nombre, {
-              entity: fondo.nombre,
-              rate: tna,
-              type: 'Cuenta Remunerada',
-              logo: fondo.logo
-            });
-          } catch (e) {
-            console.error(`Error ${fondo.nombre}:`, e);
-          }
-        }
-
-        const walletData = Array.from(walletMap.values());
+        // Cuentas remuneradas - desde Comparatasas
+        const walletRes = await axios.get('https://api.comparatasas.ar/cuentas-remuneradas');
+        const walletData = walletRes.data.map((item: any) => ({
+          entity: item.nombre,
+          rate: item.tna,
+          type: 'Cuenta Remunerada',
+          minimumAmount: item.limite,
+          logo: `https://icons.com.ar/logos/${item.nombre.toLowerCase().replace(/\s+/g, '-')}.svg`
+        }));
         setWalletRates(walletData);
 
         // Cripto - desde Comparatasas
@@ -232,14 +167,14 @@ const Simulator: React.FC = () => {
     let finalAmount, interest, effectiveRate;
 
     if (simulationType === 'crypto') {
-      finalAmount = principal * Math.pow(1 + (annualRate / 100) / 365, days);
+      finalAmount = principal * Math.pow(1 + annualRate / 100, days / 365);
       interest = finalAmount - principal;
-      effectiveRate = (Math.pow(1 + (annualRate / 100) / 365, 365) - 1) * 100;
+      effectiveRate = (Math.pow(1 + annualRate / 100, 1) - 1) * 100;
     } else {
-      // Usar interés compuesto diario también para no-cripto
-      finalAmount = principal * Math.pow(1 + (annualRate / 100) / 365, days);
+      const dailyRate = annualRate / 365;
+      finalAmount = principal * (1 + (dailyRate * days) / 100);
       interest = finalAmount - principal;
-      effectiveRate = (Math.pow(1 + (annualRate / 100) / 365, 365) - 1) * 100;
+      effectiveRate = (interest / principal) * (365 / days) * 100;
     }
 
     setResult({
@@ -1008,15 +943,6 @@ const Simulator: React.FC = () => {
                       </p>
                     </div>
                   </div>
-                  {['fixed', 'wallet'].includes(simulationType) && (
-                    <div className={`mt-4 p-3 rounded-lg border text-sm ${
-                      simulationType === 'fixed'
-                        ? 'bg-blue-50 border-blue-200 text-blue-700 dark:bg-blue-900/20 dark:border-blue-700 dark:text-blue-200'
-                        : 'bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-200'
-                    }`}>
-                      Recordá que la <strong>TNA puede variar</strong> según el banco, si sos cliente y las condiciones de la economía local. Las tasas pueden subir o bajar en función de decisiones del BCRA, inflación o políticas gubernamentales.
-                    </div>
-                  )}
                 </div>
               )}
             </div>

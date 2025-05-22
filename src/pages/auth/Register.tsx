@@ -74,9 +74,7 @@ const Register: React.FC = () => {
       setLoading(true);
       setError(null);
 
-      const { error: signUpError } = await signUp(email, password, {
-        emailRedirectTo: `${window.location.origin}/confirm`
-      });
+      const { error: signUpError } = await signUp(email, password);
 
       if (signUpError) {
         throw new Error(signUpError.message || 'Error al registrarse');
