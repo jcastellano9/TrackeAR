@@ -808,7 +808,17 @@ const Portfolio: React.FC = () => {
           {/* Valor Total del Portafolio (nuevo: global, color según ganancia/pérdida global) */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center col-span-full md:col-span-2 md:col-start-3 ${
             (() => {
-              const totalActual = totalToShow;
+              const totalActual = displayedInvestments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                if (showInARS) {
+                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                  if (i.currency === 'ARS') return acc + val;
+                } else {
+                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                  if (i.currency === 'USD') return acc + val;
+                }
+                return acc;
+              }, 0);
               const totalInvertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
                 if (showInARS) {
@@ -827,24 +837,37 @@ const Portfolio: React.FC = () => {
           }`}>
             <h3>Valor Total del Portafolio</h3>
             <p className="text-xl font-bold mt-1 text-current">
-              {formatCurrency(totalToShow, showInARS ? 'ARS' : 'USD')}
+              {formatCurrency(
+                displayedInvestments.reduce((acc, i) => {
+                  const val = i.currentPrice * i.quantity;
+                  if (showInARS) {
+                    if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
+                    if (i.currency === 'ARS') return acc + val;
+                  } else {
+                    if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
+                    if (i.currency === 'USD') return acc + val;
+                  }
+                  return acc;
+                }, 0),
+                showInARS ? 'ARS' : 'USD'
+              )}
             </p>
           </div>
 
           {/* Actual */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
-              const actual = totalToShow;
+              const actual = displayedInvestments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
               const invertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
-                if (showInARS) {
-                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
-                  if (i.currency === 'ARS') return acc + val;
-                } else {
-                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
-                  if (i.currency === 'USD') return acc + val;
-                }
-                return acc;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
               }, 0);
               return actual >= invertido
                 ? 'bg-green-50 text-green-700'
@@ -853,24 +876,32 @@ const Portfolio: React.FC = () => {
           }`}>
             <h3>Actual</h3>
             <p className="text-xl font-bold mt-1">
-              {formatCurrency(totalToShow, totalCurrencyToShow)}
+              {formatCurrency(
+                displayedInvestments.reduce((acc, i) => {
+                  const val = i.currentPrice * i.quantity;
+                  return showInARS
+                    ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                    : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+                }, 0),
+                totalCurrencyToShow
+              )}
             </p>
           </div>
 
           {/* Resultado */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
-              const actual = totalToShow;
+              const actual = displayedInvestments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
               const invertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
-                if (showInARS) {
-                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
-                  if (i.currency === 'ARS') return acc + val;
-                } else {
-                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
-                  if (i.currency === 'USD') return acc + val;
-                }
-                return acc;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
               }, 0);
               return actual >= invertido
                 ? 'bg-green-50 text-green-700'
@@ -881,20 +912,20 @@ const Portfolio: React.FC = () => {
             {(() => {
               const invertido = displayedInvestments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
-                if (showInARS) {
-                  if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
-                  if (i.currency === 'ARS') return acc + val;
-                } else {
-                  if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
-                  if (i.currency === 'USD') return acc + val;
-                }
-                return acc;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
               }, 0);
-              const diff = totalToShow - invertido;
-              const percentage = invertido !== 0 ? ((diff / invertido) * 100).toFixed(2) : '0.00';
+              const actual = displayedInvestments.reduce((acc, i) => {
+                const val = i.currentPrice * i.quantity;
+                return showInARS
+                  ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
+                  : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
+              }, 0);
+              const diff = actual - invertido;
               return (
                 <p className="text-xl font-bold mt-1">
-                  {formatCurrency(diff, totalCurrencyToShow)} ({percentage}%)
+                  {formatCurrency(diff, totalCurrencyToShow)} ({invertido !== 0 ? ((diff / invertido) * 100).toFixed(2) : '0.00'}%)
                 </p>
               );
             })()}
