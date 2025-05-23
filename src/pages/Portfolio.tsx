@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { Search, Plus, TrendingUp, TrendingDown, Loader, X, Check, AlertCircle, Calendar, DollarSign, Edit2, Trash, Heart, Download } from 'lucide-react';
+import { Search, Plus, TrendingUp, TrendingDown, Loader, X, Check, AlertCircle, Calendar, DollarSign, Edit2, Trash, Heart } from 'lucide-react';
 
 interface Investment {
   id: string;
@@ -512,58 +512,6 @@ const Portfolio: React.FC = () => {
     }
   };
 
-  // Export CSV
-  const handleExportCSV = () => {
-    const headers = [
-      'Ticker',
-      'Nombre',
-      'Tipo',
-      'Precio Actual',
-      'Precio Compra',
-      'Cambio $',
-      'Cambio %',
-      'Cantidad',
-      'Tenencia',
-      'Fecha Compra',
-    ];
-    const rows = investments.map((inv) => {
-      // Use purchasePrice, not purchase_price
-      // Asegurarse de usar el contexto de visualización actual
-      const priceChangeData = calculateReturn(
-        inv.currentPrice,
-        inv.purchasePrice,
-        inv.currency,
-        showInARS,
-        cclPrice
-      );
-      const priceChange = priceChangeData.amount;
-      const percentageChange = priceChangeData.percentage;
-      const tenencia = inv.currentPrice * inv.quantity;
-      return [
-        inv.ticker,
-        inv.name,
-        inv.type,
-        inv.currentPrice,
-        inv.purchasePrice,
-        priceChange.toFixed(2),
-        percentageChange.toFixed(2) + '%',
-        inv.quantity,
-        tenencia.toFixed(2),
-        inv.purchaseDate
-          ? new Date(inv.purchaseDate).toLocaleDateString('es-AR')
-          : '-',
-      ];
-    });
-    const csv = [headers, ...rows].map((row) => row.join(',')).join('\n');
-    const blob = new Blob([csv], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = 'cartera.csv';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
 
   // Ordenar inversiones según sortBy (nueva lógica completa)
   const filteredInvestments = investments
@@ -679,12 +627,12 @@ const Portfolio: React.FC = () => {
         adjustedPurchase = purchase * cclPrice;
       }
     }
-    // Para Acción o CEDEAR: lógica diferenciada para ARS/USD
+    // Para Acción o CEDEAR: lógica diferenciada para ARS/USD (corregida para evitar conversión errónea)
     else if ((type === 'Acción' || type === 'CEDEAR')) {
-      if (showInARS && cclPrice && currency === 'USD') {
+      if (currency === 'USD' && showInARS && cclPrice) {
         adjustedCurrent = current * cclPrice;
         adjustedPurchase = purchase * cclPrice;
-      } else if (!showInARS && cclPrice && currency === 'ARS') {
+      } else if (currency === 'ARS' && !showInARS && cclPrice) {
         adjustedCurrent = current / cclPrice;
         adjustedPurchase = purchase / cclPrice;
       }
@@ -809,7 +757,8 @@ const Portfolio: React.FC = () => {
         ppcUnit,
         showInARS ? 'ARS' : 'USD',
         false,
-        null
+        null,
+        inv.type
       );
       const valorActual = priceUnit * inv.quantity;
       const cambioAbsoluto = returnData.amount * inv.quantity;
@@ -841,13 +790,6 @@ const Portfolio: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-400">Gestiona tus inversiones</p>
           </div>
           <div className="flex gap-3 flex-wrap justify-end items-center">
-            <button
-              onClick={handleExportCSV}
-              className="px-4 py-2 rounded-lg border text-sm flex items-center gap-2 transition-colors bg-green-600 text-white hover:bg-green-700 border-green-600"
-            >
-              <Download size={16} />
-              Exportar CSV
-            </button>
             <button
               onClick={() => setShowInARS(prev => !prev)}
               className={`px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
@@ -1109,18 +1051,50 @@ const Portfolio: React.FC = () => {
                     // Usar siempre el precio de mercado más reciente si está disponible, luego purchasePrice
                     const currentPrice = marketPrices[key] ?? investment.purchasePrice;
 
-                    // Nueva lógica: evitar doble conversión con CCL
-                    const priceUnit = convertPrice(currentPrice, investment.currency, showInARS ? 'ARS' : 'USD', cclPrice);
-                    const ppcUnit = convertPrice(ppcMap[ppcKey] ?? investment.purchasePrice, investment.currency, showInARS ? 'ARS' : 'USD', cclPrice);
-                    const returnData = calculateReturn(
+                    // --- Cálculo robusto de cambio $ y % por unidad en moneda de visualización ---
+                    // 1. Traer precios por unidad en la moneda de visualización
+                    let priceUnit = currentPrice;
+                    let ppcUnit = ppcMap[ppcKey] ?? investment.purchasePrice;
+
+                    // Conversiones claras y únicas (corregidas para CEDEARs y Acciones):
+                    if (investment.type === 'Cripto') {
+                      if (showInARS && cclPrice) {
+                        priceUnit = currentPrice * cclPrice;
+                        ppcUnit = ppcUnit * cclPrice;
+                      }
+                    } else if (investment.type === 'CEDEAR' || investment.type === 'Acción') {
+                      // Si la compra fue en USD y la vista es ARS, SOLO convertir el PPC
+                      if (investment.currency === 'USD' && showInARS && cclPrice) {
+                        priceUnit = currentPrice; // YA está en ARS
+                        ppcUnit = ppcUnit * cclPrice; // Pasar PPC de USD a ARS
+                      }
+                      // Si la compra fue en ARS y la vista es USD, SOLO convertir el precio actual
+                      else if (investment.currency === 'ARS' && !showInARS && cclPrice) {
+                        priceUnit = currentPrice / cclPrice; // Pasar ARS a USD
+                        // ppcUnit ya está en USD, NO tocar
+                      }
+                      // Si ambas en ARS o ambas en USD, no hacer nada
+                    }
+
+                    // Debug: asegurarse que ambas variables sean por unidad y en la moneda correcta
+                    console.log("DEBUG CAMBIO:", {
+                      ticker: investment.ticker,
+                      type: investment.type,
                       priceUnit,
                       ppcUnit,
-                      showInARS ? 'ARS' : 'USD',
-                      false,
-                      null
-                    );
-                    const priceChange = returnData.amount * investment.quantity;
-                    const priceChangePercent = returnData.percentage;
+                      cantidad: investment.quantity,
+                      currentPrice,
+                      ppcRaw: ppcMap[ppcKey],
+                      currency: investment.currency,
+                      showInARS,
+                      cclPrice
+                    });
+
+                    // Calcular diferencia y % SOLO por unidad, luego multiplicar por cantidad para el cambio $
+                    const differencePerUnit = priceUnit - ppcUnit;
+                    const priceChange = differencePerUnit * investment.quantity;
+                    const priceChangePercent = ppcUnit !== 0 ? (differencePerUnit / ppcUnit) * 100 : 0;
+
 
                     // Valor de la inversión usando priceUnit (ya convertido)
                     const tenencia = priceUnit * investment.quantity;
