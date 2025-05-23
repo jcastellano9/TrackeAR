@@ -735,13 +735,40 @@ const Portfolio: React.FC = () => {
     return result;
   }, [investments]);
 
-  // Calcular total de tenencias para asignación usando marketPrices y lógica coherente con la visualización
-  const totalTenencia = displayedInvestments.reduce((acc, inv) => {
-    const key = getAssetKey(inv);
-    const price = marketPrices[key] ?? inv.purchasePrice;
-    const adjustedPrice = convertPrice(price, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
-    return acc + adjustedPrice * inv.quantity;
-  }, 0);
+  // Calcular total de tenencias para asignación usando la misma lógica y conversiones de priceUnit * quantity que se usa en cada fila
+  const totalTenencia = displayedInvestments.reduce(
+    (acc, inv) => {
+      // Usar la misma lógica que en cada fila para el cálculo de priceUnit
+      const key = getAssetKey(inv);
+      const ppcKey = getNormalizedPpcKey(inv);
+      const currentPrice = marketPrices[key] ?? inv.purchasePrice;
+
+      const isMerged = mergeTransactions;
+      const priceOfPurchase = isMerged
+        ? ppcMap[ppcKey] ?? inv.purchasePrice
+        : inv.purchasePrice;
+
+      let priceUnit = currentPrice;
+      let ppcUnit = priceOfPurchase;
+
+      if (inv.type === 'Cripto') {
+        if (showInARS && cclPrice) {
+          priceUnit = currentPrice * cclPrice;
+          ppcUnit = ppcUnit * cclPrice;
+        }
+      } else if (inv.type === 'CEDEAR' || inv.type === 'Acción') {
+        if (inv.currency === 'USD' && showInARS && cclPrice) {
+          priceUnit = currentPrice;
+          ppcUnit = ppcUnit * cclPrice;
+        } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
+          priceUnit = currentPrice / cclPrice;
+        }
+      }
+
+      return acc + priceUnit * inv.quantity;
+    },
+    0
+  );
 
   // --- RESUMEN GLOBAL PARA TARJETAS "Actual" y "Resultado" ---
   const resumenGlobal = displayedInvestments.reduce(
@@ -1051,10 +1078,15 @@ const Portfolio: React.FC = () => {
                     // Usar siempre el precio de mercado más reciente si está disponible, luego purchasePrice
                     const currentPrice = marketPrices[key] ?? investment.purchasePrice;
 
-                    // --- Cálculo robusto de cambio $ y % por unidad en moneda de visualización ---
-                    // 1. Traer precios por unidad en la moneda de visualización
+                    // --- NUEVA LÓGICA: el PPC usado depende de mergeTransactions ---
+                    // Determinar si se agrupan transacciones
+                    const isMerged = mergeTransactions;
+                    const priceOfPurchase = isMerged
+                      ? ppcMap[ppcKey] ?? investment.purchasePrice // PPC global ponderado
+                      : investment.purchasePrice; // PPC individual de la transacción
+
                     let priceUnit = currentPrice;
-                    let ppcUnit = ppcMap[ppcKey] ?? investment.purchasePrice;
+                    let ppcUnit = priceOfPurchase;
 
                     // Conversiones claras y únicas (corregidas para CEDEARs y Acciones):
                     if (investment.type === 'Cripto') {
@@ -1094,7 +1126,6 @@ const Portfolio: React.FC = () => {
                     const differencePerUnit = priceUnit - ppcUnit;
                     const priceChange = differencePerUnit * investment.quantity;
                     const priceChangePercent = ppcUnit !== 0 ? (differencePerUnit / ppcUnit) * 100 : 0;
-
 
                     // Valor de la inversión usando priceUnit (ya convertido)
                     const tenencia = priceUnit * investment.quantity;
