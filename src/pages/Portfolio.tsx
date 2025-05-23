@@ -716,6 +716,37 @@ const Portfolio: React.FC = () => {
 
   console.log("Portfolio renderizado");
   if (!user) return <div>Usuario no autenticado</div>;
+
+  // Calcular PPC promedio ponderado por activo (ticker+tipo)
+  const ppcMap: Record<string, number> = React.useMemo(() => {
+    const map: Record<string, { totalQty: number; totalCost: number }> = {};
+    investments.forEach(inv => {
+      const key = inv.ticker + '-' + inv.type;
+      if (!map[key]) {
+        map[key] = { totalQty: 0, totalCost: 0 };
+      }
+      map[key].totalQty += inv.quantity;
+      map[key].totalCost += inv.purchasePrice * inv.quantity;
+    });
+    const result: Record<string, number> = {};
+    Object.keys(map).forEach(key => {
+      result[key] = map[key].totalQty > 0 ? map[key].totalCost / map[key].totalQty : 0;
+    });
+    return result;
+  }, [investments]);
+
+  // Calcular total de tenencias para asignación
+  const totalTenencia = displayedInvestments.reduce((acc, inv) => {
+    const value = showInARS
+      ? inv.currency === 'USD' && cclPrice
+        ? inv.currentPrice * inv.quantity * cclPrice
+        : inv.currentPrice * inv.quantity
+      : inv.currency === 'ARS' && cclPrice
+        ? inv.currentPrice * inv.quantity / cclPrice
+        : inv.currentPrice * inv.quantity;
+    return acc + value;
+  }, 0);
+
   return (
       <div className="space-y-6">
         {/* Export CSV, Add Investment, and View in USD buttons grouped */}
@@ -1035,16 +1066,26 @@ const Portfolio: React.FC = () => {
                   </thead>
                   <tbody>
                   {displayedInvestments.map((investment) => {
-                    const key = investment.type + '-' + investment.ticker.toUpperCase();
-                    const currentPrice = marketPrices[key] ?? investment.purchasePrice; // fallback si no hay precio de mercado
+                    const key = investment.ticker + '-' + investment.type;
+                    // Usar siempre el precio de mercado más reciente si está disponible
+                    const currentPrice = marketPrices[key] !== undefined ? marketPrices[key] : investment.purchasePrice;
 
                     // Cálculo de cambio
-                    const priceChange = (currentPrice - investment.purchasePrice) * investment.quantity;
-                    const priceChangePercent = investment.purchasePrice
-                      ? ((currentPrice - investment.purchasePrice) / investment.purchasePrice) * 100
+                    const priceChange = (currentPrice - ppcMap[key]) * investment.quantity;
+                    const priceChangePercent = ppcMap[key]
+                      ? ((currentPrice - ppcMap[key]) / ppcMap[key]) * 100
                       : 0;
 
-                    // Renderiza usando currentPrice, priceChange, priceChangePercent, etc.
+                    // Calcular tenencia para asignación
+                    const tenencia = showInARS
+                      ? investment.currency === 'USD' && cclPrice
+                        ? currentPrice * investment.quantity * cclPrice
+                        : currentPrice * investment.quantity
+                      : investment.currency === 'ARS' && cclPrice
+                        ? currentPrice * investment.quantity / cclPrice
+                        : currentPrice * investment.quantity;
+                    const asignacion = totalTenencia > 0 ? (tenencia / totalTenencia) * 100 : 0;
+
                     return (
                         <tr
                             key={investment.id}
@@ -1075,17 +1116,17 @@ const Portfolio: React.FC = () => {
                           <td className="py-4 px-4 text-gray-600">{investment.name}</td>
                           {/* Precio actual */}
                           <td className="py-4 px-4 text-gray-600">
-                            {(investment.currentPrice === undefined || investment.currentPrice === null || isNaN(investment.currentPrice)) ? (
+                            {currentPrice === undefined || currentPrice === null || isNaN(currentPrice) ? (
                               <span className="italic text-gray-400">cargando</span>
                             ) : (
                               formatCurrency(
                                 showInARS
                                   ? investment.currency === 'USD' && cclPrice
-                                    ? investment.currentPrice * cclPrice
-                                    : investment.currentPrice
+                                    ? currentPrice * cclPrice
+                                    : currentPrice
                                   : investment.currency === 'ARS' && cclPrice
-                                    ? investment.currentPrice / cclPrice
-                                    : investment.currentPrice,
+                                    ? currentPrice / cclPrice
+                                    : currentPrice,
                                 showInARS ? 'ARS' : 'USD'
                               )
                             )}
@@ -1096,19 +1137,32 @@ const Portfolio: React.FC = () => {
                             {formatCurrency(priceChange, showInARS ? 'ARS' : 'USD')}
                           </td>
                           {/* Cambio % */}
-                          <td className={`py-4 px-4 text-center ${priceChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                          <td className={`py-4 px-4 text-center ${priceChangePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {priceChangePercent >= 0 ? '+' : ''}
                             {priceChangePercent.toFixed(2)}%
                           </td>
                           {/* Cantidad */}
-                          <td className="py-4 px-4 text-center">{investment.quantity.toFixed(4)}</td>
+                          <td className="py-4 px-4 text-center">
+                            {investment.type === 'Cripto'
+                              ? investment.quantity.toFixed(4)
+                              : Math.round(investment.quantity)}
+                          </td>
                           {/* PPC */}
                           <td className="py-4 px-4 text-gray-600 text-center">
-                            {formatCurrency(investment.purchasePrice, showInARS ? 'ARS' : 'USD')}
+                            {formatCurrency(
+                              showInARS
+                                ? investment.currency === 'USD' && cclPrice
+                                  ? ppcMap[key] * cclPrice
+                                  : ppcMap[key]
+                                : investment.currency === 'ARS' && cclPrice
+                                  ? ppcMap[key] / cclPrice
+                                  : ppcMap[key],
+                              showInARS ? 'ARS' : 'USD'
+                            )}
                           </td>
                           {/* Tenencia */}
                           <td className="py-4 px-4 text-gray-600 text-center">
-                            {investment.currentPrice * investment.quantity}
+                            {formatCurrency(tenencia, showInARS ? 'ARS' : 'USD')}
                           </td>
                           {/* Fecha de compra */}
                           {!mergeTransactions && (
@@ -1132,11 +1186,11 @@ const Portfolio: React.FC = () => {
                                       ? 'bg-purple-600'
                                       : 'bg-[#0EA5E9]'
                                   }`}
-                                  style={{ width: `${(investment.currentPrice / (investment.currentPrice * investment.quantity)).toFixed(2)}%` }}
+                                  style={{ width: `${asignacion.toFixed(2)}%` }}
                                 />
                               </div>
                               <span className="text-sm text-gray-600">
-                                {((investment.currentPrice - investment.purchasePrice) / investment.purchasePrice * 100).toFixed(2)}%
+                                {asignacion.toFixed(2)}%
                               </span>
                             </div>
                           </td>
