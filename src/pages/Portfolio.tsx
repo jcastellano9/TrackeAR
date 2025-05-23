@@ -1096,10 +1096,10 @@ const Portfolio: React.FC = () => {
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center"> {/* Corazón (favorito) */} </th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ticker</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Nombre</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Precio</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Precio Acual</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio $</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio %</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cantitdad</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cantidad</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">PPC</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Valor</th>
                     {!mergeTransactions && (
