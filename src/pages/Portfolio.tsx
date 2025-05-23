@@ -54,7 +54,7 @@ const Portfolio: React.FC = () => {
   // Nuevo estado para filtro por tipo de activo
   const [activeTypeFilter, setActiveTypeFilter] = useState<'Todos' | 'CEDEAR' | 'Cripto' | 'Acción'>('Todos');
   // Estado para unificar transacciones repetidas
-  const [mergeTransactions, setMergeTransactions] = useState(false);
+  const [mergeTransactions, setMergeTransactions] = useState(true);
   // Estado para alternar visualización entre ARS y USD
   const [showInARS, setShowInARS] = useState(true);
   // Estado para orden de la tabla (ascendente/descendente por criterio)
@@ -221,13 +221,34 @@ const Portfolio: React.FC = () => {
       })
     );
   }, [predefinedAssets, assetMap]);
-  // Toggle favorite
-  const toggleFavorite = (id: string) => {
+  // Toggle favorite (actualiza local y en Supabase)
+  const toggleFavorite = async (id: string) => {
+    const updated = investments.find(inv => inv.id === id);
+    if (!updated || !user?.id) return;
+
+    const newFavoriteValue = !updated.isFavorite;
+
+    // Actualizar localmente para feedback inmediato
     setInvestments(prev =>
-        prev.map(inv =>
-            inv.id === id ? { ...inv, isFavorite: !inv.isFavorite } : inv
-        )
+      prev.map(inv =>
+        inv.id === id ? { ...inv, isFavorite: newFavoriteValue } : inv
+      )
     );
+
+    // Persistir en Supabase
+    try {
+      const { error } = await supabase
+        .from('investments')
+        .update({ is_favorite: newFavoriteValue })
+        .eq('id', id)
+        .eq('user_id', user.id);
+
+      if (error) {
+        console.error("Error actualizando favorito en Supabase:", error);
+      }
+    } catch (err) {
+      console.error("Error al actualizar favorito:", err);
+    }
   };
 
   const handleAssetSelect = async (asset: PredefinedAsset) => {
@@ -1019,32 +1040,46 @@ const Portfolio: React.FC = () => {
             transition={{ duration: 0.3, delay: 0.1 }}
             className="bg-white backdrop-blur-sm bg-opacity-80 rounded-xl shadow-sm p-6 border border-gray-100"
         >
-          {/* Filtro de tipo de activo, búsqueda y orden */}
+          {/* Filtros, Desglosar, Buscador y Orden: nuevo orden y estilos */}
           <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
-            <div className="flex gap-2 flex-wrap items-center">
-              {['Todos', 'Cripto', 'CEDEAR', 'Acción'].map((type) => (
+            {/* Filtros de tipo */}
+            <div className="flex flex-wrap gap-2 items-center">
+              {[
+                { label: 'Todos', value: 'Todos' },
+                { label: 'Acciones', value: 'Acción' },
+                { label: 'CEDEARs', value: 'CEDEAR' },
+                { label: 'Criptomonedas', value: 'Cripto' },
+              ].map(({ label, value }) => (
                 <button
-                  key={type}
-                  onClick={() => setActiveTypeFilter(type as any)}
-                  className={`px-3 py-1 rounded-lg text-sm border ${
-                    activeTypeFilter === type ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
+                  key={value}
+                  onClick={() => setActiveTypeFilter(value as any)}
+                  className={`px-3 py-1.5 h-9 rounded-lg text-sm border flex items-center justify-center ${
+                    activeTypeFilter === value ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-700 border-gray-300'
                   }`}
                 >
-                  {type}
+                  {label}
                 </button>
               ))}
-              <label htmlFor="mergeTransactions" className="inline-flex items-center gap-2 px-3 py-1 rounded-lg border border-gray-300 text-gray-700 text-sm hover:bg-gray-50 cursor-pointer ml-2">
-                <input
-                  type="checkbox"
-                  id="mergeTransactions"
-                  checked={mergeTransactions}
-                  onChange={(e) => setMergeTransactions(e.target.checked)}
-                  className="form-checkbox text-blue-600 rounded"
-                />
-                Unificar transacciones
-              </label>
             </div>
-            <div className="flex gap-4 flex-wrap items-center justify-end">
+            {/* Switch mergeTransactions: arriba a la derecha, alineado con filtros y buscador */}
+            <div className="flex items-center">
+              <button
+                type="button"
+                aria-pressed={mergeTransactions}
+                onClick={() => setMergeTransactions((prev) => !prev)}
+                className={`relative inline-flex items-center h-6 w-11 rounded-full transition-colors focus:outline-none ${
+                  mergeTransactions ? 'bg-blue-600 dark:bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'
+                }`}
+                tabIndex={0}
+              >
+                <span
+                  className={`inline-block w-5 h-5 transform bg-white dark:bg-gray-200 rounded-full shadow transition-transform duration-200 
+                    ${mergeTransactions ? 'translate-x-5' : 'translate-x-1'}`}
+                />
+              </button>
+            </div>
+            {/* Buscador y Orden */}
+            <div className="flex-1 flex gap-4 justify-end flex-wrap items-center">
               <div className="relative flex-1 w-full max-w-xs">
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                 <input
@@ -1052,11 +1087,10 @@ const Portfolio: React.FC = () => {
                   placeholder="Buscar por Ticker o Nombre..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="max-w-xs w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+                  className="max-w-xs w-full h-9 pl-10 pr-4 text-sm py-1.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
               </div>
               <div>
-                <label htmlFor="sortBy" className="mr-2 text-sm text-gray-700">Ordenar por:</label>
                 <select
                   id="sortBy"
                   value={sortBy}
@@ -1067,7 +1101,7 @@ const Portfolio: React.FC = () => {
                     'tenenciaAsc' | 'tenenciaDesc' |
                     'fechaAsc' | 'fechaDesc'
                   )}
-                  className="px-2 py-1 rounded-lg border border-gray-300 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  className="w-full max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="tickerAZ">Ticker A-Z</option>
                   <option value="tickerZA">Ticker Z-A</option>
@@ -1105,9 +1139,7 @@ const Portfolio: React.FC = () => {
                     {!mergeTransactions && (
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Fecha</th>
                     )}
-                    {!mergeTransactions && (
-                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Asignación</th>
-                    )}
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Asignación</th>
                     {!mergeTransactions && (
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Acciones</th>
                     )}
@@ -1150,13 +1182,25 @@ const Portfolio: React.FC = () => {
                         >
                           {/* Corazón (favorito, centrado) */}
                           <td className="py-4 px-4 text-center">
-                            <button onClick={() => toggleFavorite(investment.id)}>
-                              <Heart
+                            {mergeTransactions ? (
+                              <div className="relative group">
+                                <Heart
+                                  size={18}
+                                  className="stroke-2 text-gray-300 cursor-not-allowed"
+                                />
+                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 rounded bg-gray-700 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                                  Desactiva la vista agrupada para editar favoritos
+                                </div>
+                              </div>
+                            ) : (
+                              <button onClick={() => toggleFavorite(investment.id)}>
+                                <Heart
                                   size={18}
                                   fill={investment.isFavorite ? '#f87171' : 'none'}
                                   className={`stroke-2 ${investment.isFavorite ? 'text-red-500' : 'text-gray-400'} hover:scale-110 transition-transform`}
-                              />
-                            </button>
+                                />
+                              </button>
+                            )}
                           </td>
                           {/* Ticker */}
                           <td className="py-4 px-4">
@@ -1203,7 +1247,13 @@ const Portfolio: React.FC = () => {
                             {priceChangePercent.toFixed(2)}%
                           </td>
                           {/* Cantidad */}
-                          <td className="py-4 px-4 text-center">
+                          <td
+                            className={`py-4 px-4 text-center ${
+                              investment.quantity > 0
+                                ? 'text-gray-800'
+                                : 'text-red-600'
+                            }`}
+                          >
                             {investment.type === 'Cripto'
                               ? investment.quantity.toFixed(4)
                               : Math.round(investment.quantity)}
