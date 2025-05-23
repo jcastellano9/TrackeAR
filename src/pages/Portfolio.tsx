@@ -762,6 +762,10 @@ const Portfolio: React.FC = () => {
           ppcUnit = ppcUnit * cclPrice;
         } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
           priceUnit = currentPrice / cclPrice;
+          ppcUnit = ppcUnit / cclPrice;
+        } else if (inv.currency === 'USD' && !showInARS && cclPrice) {
+          priceUnit = currentPrice / cclPrice;
+          // ppcUnit ya está en USD
         }
       }
 
@@ -776,19 +780,30 @@ const Portfolio: React.FC = () => {
       const key = getAssetKey(inv);
       const ppcKey = getNormalizedPpcKey(inv);
       const currentPrice = marketPrices[key] ?? inv.purchasePrice;
-      // Conversiones: ambos precios a la moneda de visualización usando convertPrice
-      const priceUnit = convertPrice(currentPrice, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
-      const ppcUnit = convertPrice(ppcMap[ppcKey] ?? inv.purchasePrice, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
-      const returnData = calculateReturn(
-        priceUnit,
-        ppcUnit,
-        showInARS ? 'ARS' : 'USD',
-        false,
-        null,
-        inv.type
-      );
+      // Nueva lógica coherente con la vista de tabla
+      let priceUnit = currentPrice;
+      let ppcUnit = ppcMap[ppcKey] ?? inv.purchasePrice;
+      if (inv.type === 'Cripto') {
+        if (showInARS && cclPrice) {
+          priceUnit *= cclPrice;
+          ppcUnit *= cclPrice;
+        }
+      } else if (inv.type === 'Acción' || inv.type === 'CEDEAR') {
+        if (inv.currency === 'USD' && showInARS && cclPrice) {
+          ppcUnit *= cclPrice;
+          // priceUnit ya está en ARS
+        } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
+          priceUnit /= cclPrice;
+          ppcUnit /= cclPrice;
+        } else if (inv.currency === 'USD' && !showInARS && cclPrice) {
+          // currentPrice viene en ARS, necesito convertirlo a USD
+          priceUnit /= cclPrice;
+          // ppcUnit ya está en USD
+        }
+      }
+      const differencePerUnit = priceUnit - ppcUnit;
       const valorActual = priceUnit * inv.quantity;
-      const cambioAbsoluto = returnData.amount * inv.quantity;
+      const cambioAbsoluto = differencePerUnit * inv.quantity;
       // Usar ppcUnit * inv.quantity para el invertido, así todo queda en la moneda visualizada
       return {
         valorActual: acc.valorActual + valorActual,
@@ -881,7 +896,7 @@ const Portfolio: React.FC = () => {
           {/* Valor Total del Portafolio (nuevo: global, color según ganancia/pérdida global) */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center col-span-full md:col-span-2 md:col-start-3 ${
             (() => {
-              const totalActual = displayedInvestments.reduce((acc, i) => {
+              const totalActual = investments.reduce((acc, i) => {
                 const key = i.ticker + '-' + i.type;
                 const currentPrice = marketPrices[key] ?? i.purchasePrice;
                 const val = currentPrice * i.quantity;
@@ -894,7 +909,7 @@ const Portfolio: React.FC = () => {
                 }
                 return acc;
               }, 0);
-              const totalInvertido = displayedInvestments.reduce((acc, i) => {
+              const totalInvertido = investments.reduce((acc, i) => {
                 const val = i.purchasePrice * i.quantity;
                 if (showInARS) {
                   if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
@@ -913,7 +928,7 @@ const Portfolio: React.FC = () => {
             <h3>Valor Total del Portafolio</h3>
             <p className="text-xl font-bold mt-1 text-current">
               {formatCurrency(
-                displayedInvestments.reduce((acc, i) => {
+                investments.reduce((acc, i) => {
                   const key = i.ticker + '-' + i.type;
                   const currentPrice = marketPrices[key] ?? i.purchasePrice;
                   const val = currentPrice * i.quantity;
@@ -1051,9 +1066,9 @@ const Portfolio: React.FC = () => {
                 <table className="w-full">
                   <thead>
                   <tr className="text-left border-b border-gray-200">
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center"> {/* Corazón (favorito) */} </th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">❤️</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ticker</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Nombre</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Nombre</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Precio Acual</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio $</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio %</th>
@@ -1063,9 +1078,7 @@ const Portfolio: React.FC = () => {
                     {!mergeTransactions && (
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Fecha</th>
                     )}
-                    {!mergeTransactions && (
-                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Asignación</th>
-                    )}
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Asignación</th>
                     {!mergeTransactions && (
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Acciones</th>
                     )}
@@ -1146,7 +1159,7 @@ const Portfolio: React.FC = () => {
                         >
                           {/* Corazón (favorito, centrado) */}
                           <td className="py-4 px-4 text-center">
-                            <button onClick={() => toggleFavorite(investment.id)}>
+                            <button onClick={() => toggleFavorite(investment.id)} className="mx-auto block">
                               <Heart
                                   size={18}
                                   fill={investment.isFavorite ? '#f87171' : 'none'}
@@ -1166,7 +1179,7 @@ const Portfolio: React.FC = () => {
                             </div>
                           </td>
                           {/* Nombre */}
-                          <td className="py-4 px-4 text-gray-600">{investment.name}</td>
+                          <td className="py-4 px-4 text-gray-600 text-left">{investment.name}</td>
                           {/* Precio actual */}
                           <td className="py-4 px-4 text-gray-600">
                             {
