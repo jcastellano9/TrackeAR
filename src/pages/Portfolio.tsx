@@ -27,6 +27,7 @@ interface NewInvestment {
   currency: 'USD' | 'ARS';
 }
 
+
 interface PredefinedAsset {
   ticker: string;
   name: string;
@@ -35,6 +36,19 @@ interface PredefinedAsset {
   price?: number;
   id?: string;
 }
+
+// --- Función reutilizable para conversión de precios ---
+const convertPrice = (
+  value: number,
+  fromCurrency: 'USD' | 'ARS',
+  toCurrency: 'USD' | 'ARS',
+  cclPrice: number | null
+): number => {
+  if (!value || !cclPrice) return value;
+  if (fromCurrency === 'USD' && toCurrency === 'ARS') return value * cclPrice;
+  if (fromCurrency === 'ARS' && toCurrency === 'USD') return value / cclPrice;
+  return value;
+};
 
 const Portfolio: React.FC = () => {
   const supabase = useSupabase();
@@ -221,34 +235,13 @@ const Portfolio: React.FC = () => {
       })
     );
   }, [predefinedAssets, assetMap]);
-  // Toggle favorite (actualiza local y en Supabase)
-  const toggleFavorite = async (id: string) => {
-    const updated = investments.find(inv => inv.id === id);
-    if (!updated || !user?.id) return;
-
-    const newFavoriteValue = !updated.isFavorite;
-
-    // Actualizar localmente para feedback inmediato
+  // Toggle favorite
+  const toggleFavorite = (id: string) => {
     setInvestments(prev =>
-      prev.map(inv =>
-        inv.id === id ? { ...inv, isFavorite: newFavoriteValue } : inv
-      )
+        prev.map(inv =>
+            inv.id === id ? { ...inv, isFavorite: !inv.isFavorite } : inv
+        )
     );
-
-    // Persistir en Supabase
-    try {
-      const { error } = await supabase
-        .from('investments')
-        .update({ is_favorite: newFavoriteValue })
-        .eq('id', id)
-        .eq('user_id', user.id);
-
-      if (error) {
-        console.error("Error actualizando favorito en Supabase:", error);
-      }
-    } catch (err) {
-      console.error("Error al actualizar favorito:", err);
-    }
   };
 
   const handleAssetSelect = async (asset: PredefinedAsset) => {
@@ -663,12 +656,14 @@ const Portfolio: React.FC = () => {
       )
     : filteredInvestments;
 
+  // Lógica corregida: conversión diferenciada para Cripto, Acción, CEDEAR y contexto ARS/USD
   const calculateReturn = (
     current: number,
     purchase: number,
     currency: 'USD' | 'ARS',
     showInARS: boolean,
-    cclPrice: number | null
+    cclPrice: number | null,
+    type?: 'Cripto' | 'Acción' | 'CEDEAR'
   ) => {
     if (!purchase || isNaN(current) || isNaN(purchase)) {
       return { amount: 0, percentage: 0 };
@@ -677,19 +672,26 @@ const Portfolio: React.FC = () => {
     let adjustedCurrent = current;
     let adjustedPurchase = purchase;
 
-    if (showInARS && currency === 'USD' && cclPrice) {
-      adjustedCurrent *= cclPrice;
-      adjustedPurchase *= cclPrice;
+    // Para Cripto: si la vista es ARS, multiplicar ambos por CCL
+    if (type === 'Cripto') {
+      if (showInARS && cclPrice) {
+        adjustedCurrent = current * cclPrice;
+        adjustedPurchase = purchase * cclPrice;
+      }
     }
-
-    if (!showInARS && currency === 'ARS' && cclPrice) {
-      adjustedCurrent /= cclPrice;
-      adjustedPurchase /= cclPrice;
+    // Para Acción o CEDEAR: lógica diferenciada para ARS/USD
+    else if ((type === 'Acción' || type === 'CEDEAR')) {
+      if (showInARS && cclPrice && currency === 'USD') {
+        adjustedCurrent = current * cclPrice;
+        adjustedPurchase = purchase * cclPrice;
+      } else if (!showInARS && cclPrice && currency === 'ARS') {
+        adjustedCurrent = current / cclPrice;
+        adjustedPurchase = purchase / cclPrice;
+      }
     }
 
     const difference = adjustedCurrent - adjustedPurchase;
     const percentage = (difference / adjustedPurchase) * 100;
-
     return {
       amount: difference,
       percentage: percentage
@@ -710,9 +712,7 @@ const Portfolio: React.FC = () => {
 
   // Calcular totales en ARS y USD y visualización dinámica
   const totalARS = displayedInvestments.reduce((acc, inv) => {
-    if (inv.currency === 'ARS') return acc + inv.currentPrice * inv.quantity;
-    if (inv.currency === 'USD' && cclPrice) return acc + inv.currentPrice * inv.quantity * cclPrice;
-    return acc;
+    return acc + convertPrice(inv.currentPrice * inv.quantity, inv.currency, 'ARS', cclPrice);
   }, 0);
 
   const totalUSD = displayedInvestments
@@ -722,15 +722,7 @@ const Portfolio: React.FC = () => {
   // Totales para visualización según showInARS (corregido para convertir correctamente y evitar NaN)
   const totalToShow = displayedInvestments.reduce((acc, inv) => {
     const value = inv.currentPrice * inv.quantity;
-    if (showInARS) {
-      if (inv.currency === 'USD' && cclPrice) return acc + value * cclPrice;
-      if (inv.currency === 'ARS') return acc + value;
-      return acc;
-    } else {
-      if (inv.currency === 'ARS' && cclPrice) return acc + value / cclPrice;
-      if (inv.currency === 'USD') return acc + value;
-      return acc;
-    }
+    return acc + convertPrice(value, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
   }, 0);
   const totalCurrencyToShow = showInARS ? 'ARS' : 'USD';
 
@@ -799,13 +791,7 @@ const Portfolio: React.FC = () => {
   const totalTenencia = displayedInvestments.reduce((acc, inv) => {
     const key = getAssetKey(inv);
     const price = marketPrices[key] ?? inv.purchasePrice;
-    const adjustedPrice = showInARS
-      ? inv.currency === 'USD' && cclPrice
-        ? price * cclPrice
-        : price
-      : inv.currency === 'ARS' && cclPrice
-        ? price / cclPrice
-        : price;
+    const adjustedPrice = convertPrice(price, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
     return acc + adjustedPrice * inv.quantity;
   }, 0);
 
@@ -815,24 +801,9 @@ const Portfolio: React.FC = () => {
       const key = getAssetKey(inv);
       const ppcKey = getNormalizedPpcKey(inv);
       const currentPrice = marketPrices[key] ?? inv.purchasePrice;
-
-      // Conversiones: ambos precios a la moneda de visualización
-      const priceUnit = showInARS
-        ? inv.currency === 'USD' && cclPrice
-          ? currentPrice * cclPrice
-          : currentPrice
-        : inv.currency === 'ARS' && cclPrice
-          ? currentPrice / cclPrice
-          : currentPrice;
-
-      const ppcUnit = showInARS
-        ? inv.currency === 'USD' && cclPrice
-          ? (ppcMap[ppcKey] ?? inv.purchasePrice) * cclPrice
-          : (ppcMap[ppcKey] ?? inv.purchasePrice)
-        : inv.currency === 'ARS' && cclPrice
-          ? (ppcMap[ppcKey] ?? inv.purchasePrice) / cclPrice
-          : (ppcMap[ppcKey] ?? inv.purchasePrice);
-
+      // Conversiones: ambos precios a la moneda de visualización usando convertPrice
+      const priceUnit = convertPrice(currentPrice, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
+      const ppcUnit = convertPrice(ppcMap[ppcKey] ?? inv.purchasePrice, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
       const returnData = calculateReturn(
         priceUnit,
         ppcUnit,
@@ -840,10 +811,8 @@ const Portfolio: React.FC = () => {
         false,
         null
       );
-
       const valorActual = priceUnit * inv.quantity;
       const cambioAbsoluto = returnData.amount * inv.quantity;
-
       // Usar ppcUnit * inv.quantity para el invertido, así todo queda en la moneda visualizada
       return {
         valorActual: acc.valorActual + valorActual,
@@ -933,14 +902,7 @@ const Portfolio: React.FC = () => {
               {formatCurrency(
                 displayedInvestments.reduce((acc, i) => {
                   const val = i.purchasePrice * i.quantity;
-                  if (showInARS) {
-                    if (i.currency === 'USD') return cclPrice ? acc + val * cclPrice : acc;
-                    if (i.currency === 'ARS') return acc + val;
-                  } else {
-                    if (i.currency === 'ARS') return cclPrice ? acc + val / cclPrice : acc;
-                    if (i.currency === 'USD') return acc + val;
-                  }
-                  return acc;
+                  return acc + convertPrice(val, i.currency, totalCurrencyToShow, cclPrice);
                 }, 0),
                 totalCurrencyToShow
               )}
@@ -986,14 +948,7 @@ const Portfolio: React.FC = () => {
                   const key = i.ticker + '-' + i.type;
                   const currentPrice = marketPrices[key] ?? i.purchasePrice;
                   const val = currentPrice * i.quantity;
-                  if (showInARS) {
-                    if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
-                    if (i.currency === 'ARS') return acc + val;
-                  } else {
-                    if (i.currency === 'ARS' && cclPrice) return acc + val / cclPrice;
-                    if (i.currency === 'USD') return acc + val;
-                  }
-                  return acc;
+                  return acc + convertPrice(val, i.currency, showInARS ? 'ARS' : 'USD', cclPrice);
                 }, 0),
                 showInARS ? 'ARS' : 'USD'
               )}
@@ -1139,7 +1094,9 @@ const Portfolio: React.FC = () => {
                     {!mergeTransactions && (
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Fecha</th>
                     )}
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Asignación</th>
+                    {!mergeTransactions && (
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Asignación</th>
+                    )}
                     {!mergeTransactions && (
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Acciones</th>
                     )}
@@ -1152,27 +1109,21 @@ const Portfolio: React.FC = () => {
                     // Usar siempre el precio de mercado más reciente si está disponible, luego purchasePrice
                     const currentPrice = marketPrices[key] ?? investment.purchasePrice;
 
-                    // NUEVO: Cálculo de cambio $ y % usando calculateReturn considerando moneda y CCL
+                    // Nueva lógica: evitar doble conversión con CCL
+                    const priceUnit = convertPrice(currentPrice, investment.currency, showInARS ? 'ARS' : 'USD', cclPrice);
+                    const ppcUnit = convertPrice(ppcMap[ppcKey] ?? investment.purchasePrice, investment.currency, showInARS ? 'ARS' : 'USD', cclPrice);
                     const returnData = calculateReturn(
-                      currentPrice,
-                      ppcMap[ppcKey] ?? investment.purchasePrice,
-                      investment.currency,
-                      showInARS,
-                      cclPrice
+                      priceUnit,
+                      ppcUnit,
+                      showInARS ? 'ARS' : 'USD',
+                      false,
+                      null
                     );
                     const priceChange = returnData.amount * investment.quantity;
                     const priceChangePercent = returnData.percentage;
 
-                    // Implementación de asignación ajustada a la moneda de visualización y tipo
-                    const price = marketPrices[key] ?? investment.purchasePrice;
-                    const adjustedPrice = showInARS
-                      ? investment.currency === 'USD' && cclPrice
-                        ? price * cclPrice
-                        : price
-                      : investment.currency === 'ARS' && cclPrice
-                        ? price / cclPrice
-                        : price;
-                    const tenencia = adjustedPrice * investment.quantity;
+                    // Valor de la inversión usando priceUnit (ya convertido)
+                    const tenencia = priceUnit * investment.quantity;
                     const asignacion = totalTenencia > 0 ? (tenencia / totalTenencia) * 100 : 0;
 
                     return (
@@ -1182,25 +1133,13 @@ const Portfolio: React.FC = () => {
                         >
                           {/* Corazón (favorito, centrado) */}
                           <td className="py-4 px-4 text-center">
-                            {mergeTransactions ? (
-                              <div className="relative group">
-                                <Heart
-                                  size={18}
-                                  className="stroke-2 text-gray-300 cursor-not-allowed"
-                                />
-                                <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 px-2 py-1 rounded bg-gray-700 text-white text-xs opacity-0 group-hover:opacity-100 transition-opacity z-10">
-                                  Desactiva la vista agrupada para editar favoritos
-                                </div>
-                              </div>
-                            ) : (
-                              <button onClick={() => toggleFavorite(investment.id)}>
-                                <Heart
+                            <button onClick={() => toggleFavorite(investment.id)}>
+                              <Heart
                                   size={18}
                                   fill={investment.isFavorite ? '#f87171' : 'none'}
                                   className={`stroke-2 ${investment.isFavorite ? 'text-red-500' : 'text-gray-400'} hover:scale-110 transition-transform`}
-                                />
-                              </button>
-                            )}
+                              />
+                            </button>
                           </td>
                           {/* Ticker */}
                           <td className="py-4 px-4">
@@ -1220,19 +1159,21 @@ const Portfolio: React.FC = () => {
                             {
                               (() => {
                                 const priceToShow = marketPrices[key];
-                                if (priceToShow === undefined || priceToShow === null || isNaN(priceToShow ?? investment.purchasePrice)) {
+                                if (priceToShow === undefined || priceToShow === null || isNaN(priceToShow)) {
                                   return <span className="italic text-gray-400">cargando</span>;
                                 }
-                                return formatCurrency(
-                                  showInARS
-                                    ? investment.currency === 'USD' && cclPrice
-                                      ? (priceToShow ?? investment.purchasePrice) * cclPrice
-                                      : (priceToShow ?? investment.purchasePrice)
-                                    : investment.currency === 'ARS' && cclPrice
-                                      ? (priceToShow ?? investment.purchasePrice) / cclPrice
-                                      : (priceToShow ?? investment.purchasePrice),
-                                  showInARS ? 'ARS' : 'USD'
-                                );
+
+                                let adjustedPrice = priceToShow;
+
+                                if (investment.type === 'Cripto') {
+                                  // Si es cripto y vista en ARS, multiplicar por CCL
+                                  adjustedPrice = showInARS && cclPrice ? priceToShow * cclPrice : priceToShow;
+                                } else if (investment.type === 'Acción' || investment.type === 'CEDEAR') {
+                                  // Si es acción o CEDEAR y vista en USD, dividir por CCL
+                                  adjustedPrice = !showInARS && cclPrice ? priceToShow / cclPrice : priceToShow;
+                                }
+
+                                return formatCurrency(adjustedPrice, showInARS ? 'ARS' : 'USD');
                               })()
                             }
                           </td>
@@ -1263,13 +1204,12 @@ const Portfolio: React.FC = () => {
                             {!ppcMap[ppcKey] || isNaN(ppcMap[ppcKey])
                               ? <span className="italic text-gray-400">cargando</span>
                               : formatCurrency(
-                                  showInARS
-                                    ? investment.currency === 'USD' && cclPrice
-                                      ? ppcMap[ppcKey] * cclPrice
-                                      : ppcMap[ppcKey]
-                                    : investment.currency === 'ARS' && cclPrice
-                                      ? ppcMap[ppcKey] / cclPrice
-                                      : ppcMap[ppcKey],
+                                  convertPrice(
+                                    ppcMap[ppcKey],
+                                    investment.currency,
+                                    showInARS ? 'ARS' : 'USD',
+                                    cclPrice
+                                  ),
                                   showInARS ? 'ARS' : 'USD'
                                 )}
                           </td>
