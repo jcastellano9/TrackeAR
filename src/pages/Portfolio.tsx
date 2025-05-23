@@ -840,7 +840,9 @@ const Portfolio: React.FC = () => {
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center col-span-full md:col-span-2 md:col-start-3 ${
             (() => {
               const totalActual = displayedInvestments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
+                const key = i.ticker + '-' + i.type;
+                const currentPrice = marketPrices[key] ?? i.purchasePrice;
+                const val = currentPrice * i.quantity;
                 if (showInARS) {
                   if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
                   if (i.currency === 'ARS') return acc + val;
@@ -870,7 +872,9 @@ const Portfolio: React.FC = () => {
             <p className="text-xl font-bold mt-1 text-current">
               {formatCurrency(
                 displayedInvestments.reduce((acc, i) => {
-                  const val = i.currentPrice * i.quantity;
+                  const key = i.ticker + '-' + i.type;
+                  const currentPrice = marketPrices[key] ?? i.purchasePrice;
+                  const val = currentPrice * i.quantity;
                   if (showInARS) {
                     if (i.currency === 'USD' && cclPrice) return acc + val * cclPrice;
                     if (i.currency === 'ARS') return acc + val;
@@ -889,7 +893,9 @@ const Portfolio: React.FC = () => {
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
               const actual = displayedInvestments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
+                const key = i.ticker + '-' + i.type;
+                const currentPrice = marketPrices[key] ?? i.purchasePrice;
+                const val = currentPrice * i.quantity;
                 return showInARS
                   ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
                   : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
@@ -909,7 +915,9 @@ const Portfolio: React.FC = () => {
             <p className="text-xl font-bold mt-1">
               {formatCurrency(
                 displayedInvestments.reduce((acc, i) => {
-                  const val = i.currentPrice * i.quantity;
+                  const key = i.ticker + '-' + i.type;
+                  const currentPrice = marketPrices[key] ?? i.purchasePrice;
+                  const val = currentPrice * i.quantity;
                   return showInARS
                     ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
                     : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
@@ -923,7 +931,9 @@ const Portfolio: React.FC = () => {
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
               const actual = displayedInvestments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
+                const key = i.ticker + '-' + i.type;
+                const currentPrice = marketPrices[key] ?? i.purchasePrice;
+                const val = currentPrice * i.quantity;
                 return showInARS
                   ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
                   : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
@@ -948,7 +958,9 @@ const Portfolio: React.FC = () => {
                   : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
               }, 0);
               const actual = displayedInvestments.reduce((acc, i) => {
-                const val = i.currentPrice * i.quantity;
+                const key = i.ticker + '-' + i.type;
+                const currentPrice = marketPrices[key] ?? i.purchasePrice;
+                const val = currentPrice * i.quantity;
                 return showInARS
                   ? acc + (i.currency === 'USD' && cclPrice ? val * cclPrice : val)
                   : acc + (i.currency === 'ARS' && cclPrice ? val / cclPrice : val);
