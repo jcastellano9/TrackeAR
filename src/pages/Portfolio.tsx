@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { Search, Plus, TrendingUp, TrendingDown, Loader, X, Check, AlertCircle, Calendar, DollarSign, Edit2, Trash, Heart } from 'lucide-react';
+import { Search, Plus, TrendingUp, TrendingDown, Loader, X, Check, AlertCircle, Calendar, DollarSign, Edit2, Trash, Heart, ArrowDownCircle } from 'lucide-react';
 
 interface Investment {
   id: string;
@@ -235,13 +235,59 @@ const Portfolio: React.FC = () => {
       })
     );
   }, [predefinedAssets, assetMap]);
-  // Toggle favorite
-  const toggleFavorite = (id: string) => {
+  // Toggle favorite (actualiza frontend y Supabase)
+  const toggleFavorite = async (id: string) => {
     setInvestments(prev =>
-        prev.map(inv =>
-            inv.id === id ? { ...inv, isFavorite: !inv.isFavorite } : inv
-        )
+      prev.map(inv =>
+        inv.id === id ? { ...inv, isFavorite: !inv.isFavorite } : inv
+      )
     );
+
+    // También actualiza en Supabase
+    const updated = investments.find(inv => inv.id === id);
+    if (updated) {
+      const { error } = await supabase
+        .from('investments')
+        .update({ is_favorite: !updated.isFavorite })
+        .eq('id', id);
+      if (error) {
+        console.error('Error al actualizar favorito en Supabase:', error.message);
+      }
+    }
+  };
+
+  // Exportar inversiones como CSV
+  const exportToCSV = () => {
+    const headers = ['Ticker', 'Nombre', 'Tipo', 'Cantidad', 'PPC', 'Moneda', 'Fecha de compra'];
+    const rows = filteredInvestments
+      .slice()
+      .sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime())
+      .map(inv => {
+        const key = getNormalizedPpcKey(inv);
+        const ppc = ppcMap[key] ?? inv.purchasePrice;
+        return [
+          inv.ticker,
+          inv.name,
+          inv.type,
+          inv.quantity,
+          ppc,
+          inv.currency,
+          inv.purchaseDate
+        ];
+      });
+
+    const csvContent = [headers, ...rows]
+      .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'inversiones.csv');
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
   const handleAssetSelect = async (asset: PredefinedAsset) => {
@@ -513,97 +559,6 @@ const Portfolio: React.FC = () => {
   };
 
 
-  // Ordenar inversiones según sortBy (nueva lógica completa)
-  const filteredInvestments = investments
-    .filter(investment =>
-      investment.ticker &&
-      !isNaN(investment.purchasePrice) &&
-      !isNaN(investment.quantity) &&
-      (activeTypeFilter === 'Todos' || investment.type === activeTypeFilter) &&
-      (investment.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        investment.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    )
-    .sort((a, b) => {
-      // Favoritos primero
-      if ((b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0) !== 0)
-        return (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
-      // Nueva lógica de orden:
-      if (sortBy === 'tickerAZ') return a.ticker.localeCompare(b.ticker);
-      if (sortBy === 'tickerZA') return b.ticker.localeCompare(a.ticker);
-
-      // Usar marketPrices para currentPrice
-      const getCurrentPrice = (inv: Investment) => {
-        const key = inv.ticker.toUpperCase() + '-' + inv.type;
-        return marketPrices[key] ?? inv.purchasePrice;
-      };
-
-      if (sortBy === 'gananciaPorcentajeAsc') {
-        const retA = getCurrentPrice(a) && a.purchasePrice ? calculateReturn(getCurrentPrice(a), a.purchasePrice).percentage : 0;
-        const retB = getCurrentPrice(b) && b.purchasePrice ? calculateReturn(getCurrentPrice(b), b.purchasePrice).percentage : 0;
-        return retA - retB;
-      }
-      if (sortBy === 'gananciaPorcentajeDesc') {
-        const retA = getCurrentPrice(a) && a.purchasePrice ? calculateReturn(getCurrentPrice(a), a.purchasePrice).percentage : 0;
-        const retB = getCurrentPrice(b) && b.purchasePrice ? calculateReturn(getCurrentPrice(b), b.purchasePrice).percentage : 0;
-        return retB - retA;
-      }
-
-      if (sortBy === 'gananciaValorAsc') {
-        const retA = getCurrentPrice(a) && a.purchasePrice ? calculateReturn(getCurrentPrice(a), a.purchasePrice).amount : 0;
-        const retB = getCurrentPrice(b) && b.purchasePrice ? calculateReturn(getCurrentPrice(b), b.purchasePrice).amount : 0;
-        return retA - retB;
-      }
-      if (sortBy === 'gananciaValorDesc') {
-        const retA = getCurrentPrice(a) && a.purchasePrice ? calculateReturn(getCurrentPrice(a), a.purchasePrice).amount : 0;
-        const retB = getCurrentPrice(b) && b.purchasePrice ? calculateReturn(getCurrentPrice(b), b.purchasePrice).amount : 0;
-        return retB - retA;
-      }
-
-      if (sortBy === 'tenenciaAsc') {
-        const tenA = getCurrentPrice(a) * a.quantity;
-        const tenB = getCurrentPrice(b) * b.quantity;
-        return tenA - tenB;
-      }
-      if (sortBy === 'tenenciaDesc') {
-        const tenA = getCurrentPrice(a) * a.quantity;
-        const tenB = getCurrentPrice(b) * b.quantity;
-        return tenB - tenA;
-      }
-
-      if (sortBy === 'fechaAsc') {
-        const dateA = new Date(a.purchaseDate).getTime();
-        const dateB = new Date(b.purchaseDate).getTime();
-        return dateA - dateB;
-      }
-      if (sortBy === 'fechaDesc') {
-        const dateA = new Date(a.purchaseDate).getTime();
-        const dateB = new Date(b.purchaseDate).getTime();
-        return dateB - dateA;
-      }
-      return 0;
-    });
-
-  // Agrupamiento de inversiones si mergeTransactions está activo
-  const displayedInvestments = mergeTransactions
-    ? Object.values(
-        filteredInvestments.reduce((acc, inv) => {
-          const key = `${inv.ticker}-${inv.type}`;
-          if (!acc[key]) {
-            acc[key] = { ...inv };
-          } else {
-            const prevQty = acc[key].quantity;
-            const newQty = prevQty + inv.quantity;
-            // PPC ponderado
-            acc[key].purchasePrice =
-              (acc[key].purchasePrice * prevQty + inv.purchasePrice * inv.quantity) / newQty;
-            acc[key].quantity = newQty;
-            acc[key].allocation = (acc[key].allocation ?? 0) + (inv.allocation ?? 0);
-          }
-          return acc;
-        }, {} as Record<string, Investment>)
-      )
-    : filteredInvestments;
-
   // Lógica corregida: conversión diferenciada para Cripto, Acción, CEDEAR y contexto ARS/USD
   const calculateReturn = (
     current: number,
@@ -645,6 +600,127 @@ const Portfolio: React.FC = () => {
       percentage: percentage
     };
   };
+
+  // Nueva función para obtener el precio ajustado según la visualización
+  const getAdjustedPrice = (inv: Investment): number => {
+    const key = getAssetKey(inv);
+    let price = marketPrices[key] ?? inv.purchasePrice;
+
+    if (inv.type === 'Cripto') {
+      if (showInARS && cclPrice) {
+        price *= cclPrice;
+      }
+    } else if (inv.type === 'CEDEAR' || inv.type === 'Acción') {
+      if (inv.currency === 'USD' && showInARS && cclPrice) {
+        // ya viene en ARS
+      } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
+        price = price / cclPrice;
+      } else if (inv.currency === 'USD' && !showInARS && cclPrice) {
+        price = price / cclPrice;
+      }
+    }
+
+    return price;
+  };
+
+  // Ordenar inversiones según sortBy (nueva lógica completa)
+  const filteredInvestments = investments
+    .filter(investment =>
+      investment.ticker &&
+      !isNaN(investment.purchasePrice) &&
+      !isNaN(investment.quantity) &&
+      (activeTypeFilter === 'Todos' || investment.type === activeTypeFilter) &&
+      (investment.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        investment.name.toLowerCase().includes(searchTerm.toLowerCase()))
+    );
+
+  filteredInvestments.sort((a, b) => {
+    // Favoritos primero
+    if ((b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0) !== 0)
+      return (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
+    // Nueva lógica de orden:
+    if (sortBy === 'tickerAZ') return a.ticker.localeCompare(b.ticker);
+    if (sortBy === 'tickerZA') return b.ticker.localeCompare(a.ticker);
+
+    if (sortBy === 'gananciaPorcentajeAsc') {
+      const retA = getAdjustedPrice(a) && a.purchasePrice ? calculateReturn(getAdjustedPrice(a), a.purchasePrice, a.currency, showInARS, cclPrice, a.type).percentage : 0;
+      const retB = getAdjustedPrice(b) && b.purchasePrice ? calculateReturn(getAdjustedPrice(b), b.purchasePrice, b.currency, showInARS, cclPrice, b.type).percentage : 0;
+      return retA - retB;
+    }
+    if (sortBy === 'gananciaPorcentajeDesc') {
+      const retA = getAdjustedPrice(a) && a.purchasePrice ? calculateReturn(getAdjustedPrice(a), a.purchasePrice, a.currency, showInARS, cclPrice, a.type).percentage : 0;
+      const retB = getAdjustedPrice(b) && b.purchasePrice ? calculateReturn(getAdjustedPrice(b), b.purchasePrice, b.currency, showInARS, cclPrice, b.type).percentage : 0;
+      return retB - retA;
+    }
+
+    if (sortBy === 'gananciaValorAsc') {
+      const priceA = getAdjustedPrice(a);
+      const priceB = getAdjustedPrice(b);
+      const retA = priceA && a.purchasePrice
+        ? calculateReturn(priceA, a.purchasePrice, a.currency, showInARS, cclPrice, a.type).amount
+        : 0;
+      const retB = priceB && b.purchasePrice
+        ? calculateReturn(priceB, b.purchasePrice, b.currency, showInARS, cclPrice, b.type).amount
+        : 0;
+      return retA - retB;
+    }
+    if (sortBy === 'gananciaValorDesc') {
+      const priceA = getAdjustedPrice(a);
+      const priceB = getAdjustedPrice(b);
+      const retA = priceA && a.purchasePrice
+        ? calculateReturn(priceA, a.purchasePrice, a.currency, showInARS, cclPrice, a.type).amount
+        : 0;
+      const retB = priceB && b.purchasePrice
+        ? calculateReturn(priceB, b.purchasePrice, b.currency, showInARS, cclPrice, b.type).amount
+        : 0;
+      return retB - retA;
+    }
+
+    if (sortBy === 'tenenciaAsc') {
+      const tenA = getAdjustedPrice(a) * a.quantity;
+      const tenB = getAdjustedPrice(b) * b.quantity;
+      return tenA - tenB;
+    }
+    if (sortBy === 'tenenciaDesc') {
+      const tenA = getAdjustedPrice(a) * a.quantity;
+      const tenB = getAdjustedPrice(b) * b.quantity;
+      return tenB - tenA;
+    }
+
+    if (sortBy === 'fechaAsc') {
+      const dateA = new Date(a.purchaseDate).getTime();
+      const dateB = new Date(b.purchaseDate).getTime();
+      return dateA - dateB;
+    }
+    if (sortBy === 'fechaDesc') {
+      const dateA = new Date(a.purchaseDate).getTime();
+      const dateB = new Date(b.purchaseDate).getTime();
+      return dateB - dateA;
+    }
+    return 0;
+  });
+
+  // Agrupamiento de inversiones si mergeTransactions está activo
+  const displayedInvestments = mergeTransactions
+    ? Object.values(
+        filteredInvestments.reduce((acc, inv) => {
+          const key = `${inv.ticker}-${inv.type}`;
+          if (!acc[key]) {
+            acc[key] = { ...inv };
+          } else {
+            const prevQty = acc[key].quantity;
+            const newQty = prevQty + inv.quantity;
+            // PPC ponderado
+            acc[key].purchasePrice =
+              (acc[key].purchasePrice * prevQty + inv.purchasePrice * inv.quantity) / newQty;
+            acc[key].quantity = newQty;
+            acc[key].allocation = (acc[key].allocation ?? 0) + (inv.allocation ?? 0);
+          }
+          return acc;
+        }, {} as Record<string, Investment>)
+      )
+    : filteredInvestments;
+
 
   const formatCurrency = (value: number, currency: 'USD' | 'ARS' = 'ARS') => {
     const formatter = new Intl.NumberFormat('es-AR', {
@@ -833,10 +909,18 @@ const Portfolio: React.FC = () => {
           </div>
           <div className="flex gap-3 flex-wrap justify-end items-center">
             <button
+              onClick={exportToCSV}
+              className="px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors bg-pink-600 text-white hover:bg-pink-700"
+              title="Descargar CSV"
+            >
+              <ArrowDownCircle size={16} className="text-white" />
+              Exportar
+            </button>
+            <button
               onClick={() => setShowInARS(prev => !prev)}
               className={`px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
                 showInARS
-                  ? 'bg-purple-700 text-white hover:bg-purple-800'
+                  ? 'bg-green-600 text-white hover:bg-green-700'
                   : 'bg-[#0EA5E9] text-white hover:bg-[#0284c7]'
               }`}
             >
@@ -866,8 +950,10 @@ const Portfolio: React.FC = () => {
               : 'bg-[#E0F2FE] text-[#0EA5E9]'
           } shadow-sm border flex flex-col justify-center items-center`}>
             <h3 className="">Total de inversiones</h3>
-            <p className="text-xl font-bold mt-1">
-              {displayedInvestments.length}
+            <p className="text-xl font-bold mt-1 text-center leading-tight">
+              {mergeTransactions
+                ? displayedInvestments.length
+                : filteredInvestments.length}
             </p>
           </div>
 
@@ -1033,13 +1119,15 @@ const Portfolio: React.FC = () => {
                 <select
                   id="sortBy"
                   value={sortBy}
-                  onChange={e => setSortBy(e.target.value as
-                    'tickerAZ' | 'tickerZA' |
-                    'gananciaPorcentajeAsc' | 'gananciaPorcentajeDesc' |
-                    'gananciaValorAsc' | 'gananciaValorDesc' |
-                    'tenenciaAsc' | 'tenenciaDesc' |
-                    'fechaAsc' | 'fechaDesc'
-                  )}
+                  onChange={e =>
+                    setSortBy(e.target.value as
+                      'tickerAZ' | 'tickerZA' |
+                      'gananciaPorcentajeAsc' | 'gananciaPorcentajeDesc' |
+                      'gananciaValorAsc' | 'gananciaValorDesc' |
+                      'tenenciaAsc' | 'tenenciaDesc' |
+                      'fechaAsc' | 'fechaDesc'
+                    )
+                  }
                   className="w-full max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="tickerAZ">Ticker A-Z</option>
@@ -1057,6 +1145,8 @@ const Portfolio: React.FC = () => {
             </div>
           </div>
 
+
+
           {loading ? (
               <div className="flex justify-center items-center h-40">
                 <Loader className="animate-spin text-blue-600" size={24} />
@@ -1066,15 +1156,17 @@ const Portfolio: React.FC = () => {
                 <table className="w-full">
                   <thead>
                   <tr className="text-left border-b border-gray-200">
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">❤️</th>
+                    {!mergeTransactions && (
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">❤️</th>
+                    )}
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ticker</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Nombre</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Nombre</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Precio Acual</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio $</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio %</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cantidad</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">PPC</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Valor</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Tenencia</th>
                     {!mergeTransactions && (
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Fecha</th>
                     )}
@@ -1158,15 +1250,17 @@ const Portfolio: React.FC = () => {
                             className="border-b border-gray-100 hover:bg-gray-50 transition-colors"
                         >
                           {/* Corazón (favorito, centrado) */}
-                          <td className="py-4 px-4 text-center">
-                            <button onClick={() => toggleFavorite(investment.id)} className="mx-auto block">
-                              <Heart
-                                  size={18}
-                                  fill={investment.isFavorite ? '#f87171' : 'none'}
-                                  className={`stroke-2 ${investment.isFavorite ? 'text-red-500' : 'text-gray-400'} hover:scale-110 transition-transform`}
-                              />
-                            </button>
-                          </td>
+                          {!mergeTransactions && (
+                            <td className="py-4 px-4 text-center">
+                              <button onClick={() => toggleFavorite(investment.id)} className="mx-auto block">
+                                <Heart
+                                    size={18}
+                                    fill={investment.isFavorite ? '#f87171' : 'none'}
+                                    className={`stroke-2 ${investment.isFavorite ? 'text-red-500' : 'text-gray-400'} hover:scale-110 transition-transform`}
+                                />
+                              </button>
+                            </td>
+                          )}
                           {/* Ticker */}
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-2">
@@ -1179,7 +1273,7 @@ const Portfolio: React.FC = () => {
                             </div>
                           </td>
                           {/* Nombre */}
-                          <td className="py-4 px-4 text-gray-600 text-left">{investment.name}</td>
+                          <td className="py-4 px-4 text-gray-600">{investment.name}</td>
                           {/* Precio actual */}
                           <td className="py-4 px-4 text-gray-600">
                             {
