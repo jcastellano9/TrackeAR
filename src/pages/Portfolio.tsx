@@ -1076,7 +1076,15 @@ const Portfolio: React.FC = () => {
                     const key = getAssetKey(investment);
                     const ppcKey = getNormalizedPpcKey(investment);
                     // Usar siempre el precio de mercado más reciente si está disponible, luego purchasePrice
-                    const currentPrice = marketPrices[key] ?? investment.purchasePrice;
+                    let currentPrice = marketPrices[key] ?? investment.purchasePrice;
+
+                    if ((investment.type === 'CEDEAR' || investment.type === 'Acción') && cclPrice) {
+                      // Si el precio de mercado está en ARS pero la vista es en USD, convertir
+                      if (investment.currency === 'USD' && !showInARS) {
+                        currentPrice = currentPrice / cclPrice;
+                      }
+                      // Si la vista es en ARS, no tocar (ya está en ARS)
+                    }
 
                     // --- NUEVA LÓGICA: el PPC usado depende de mergeTransactions ---
                     // Determinar si se agrupan transacciones
@@ -1102,8 +1110,8 @@ const Portfolio: React.FC = () => {
                       }
                       // Si la compra fue en ARS y la vista es USD, SOLO convertir el precio actual
                       else if (investment.currency === 'ARS' && !showInARS && cclPrice) {
-                        priceUnit = currentPrice / cclPrice; // Pasar ARS a USD
-                        // ppcUnit ya está en USD, NO tocar
+                        priceUnit = currentPrice / cclPrice;
+                        ppcUnit = ppcUnit / cclPrice; // ✅ convertir también el PPC
                       }
                       // Si ambas en ARS o ambas en USD, no hacer nada
                     }
@@ -1206,17 +1214,9 @@ const Portfolio: React.FC = () => {
                           </td>
                           {/* PPC */}
                           <td className="py-4 px-4 text-gray-600 text-center">
-                            {!ppcMap[ppcKey] || isNaN(ppcMap[ppcKey])
+                            {isNaN(ppcUnit)
                               ? <span className="italic text-gray-400">cargando</span>
-                              : formatCurrency(
-                                  convertPrice(
-                                    ppcMap[ppcKey],
-                                    investment.currency,
-                                    showInARS ? 'ARS' : 'USD',
-                                    cclPrice
-                                  ),
-                                  showInARS ? 'ARS' : 'USD'
-                                )}
+                              : formatCurrency(ppcUnit, showInARS ? 'ARS' : 'USD')}
                           </td>
                           {/* Tenencia */}
                           <td className="py-4 px-4 text-gray-600 text-center">
