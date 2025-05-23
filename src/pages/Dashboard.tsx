@@ -238,27 +238,41 @@ const Dashboard: React.FC = () => {
         let current = 0;
 
         data.forEach((inv) => {
-          const quantity = Number(inv.quantity) || 0;
-          const purchasePrice = Number(inv.purchase_price) || 0;
-          const currentPrice = Number(inv.current_price) || 0;
+          const quantity = Number(inv.quantity ?? 0);
           const currency = inv.currency;
+          const purchasePrice = Number(
+            typeof inv.purchase_price === 'number'
+              ? inv.purchase_price
+              : inv.purchase_price?.toString().replace(',', '.') ?? 0
+          );
+          const currentPrice = Number(
+            typeof inv.current_price === 'number'
+              ? inv.current_price
+              : inv.current_price?.toString().replace(',', '.') ?? 0
+          );
 
-          const purchaseTotal = quantity * purchasePrice;
-          const currentTotal = quantity * currentPrice;
+          // Verificación de número válido
+          if (isNaN(purchasePrice) || isNaN(currentPrice)) {
+            console.warn('Inversión descartada por datos inválidos:', inv);
+            return;
+          }
 
-          if (currency === 'ARS') {
-            invested += purchaseTotal;
-            current += currentTotal;
-          } else if (currency === 'USD') {
-            invested += purchaseTotal * ccl;
-            current += currentTotal * ccl;
+          if (quantity > 0 && purchasePrice > 0 && currentPrice >= 0) {
+            const adjustedPurchase = currency === 'USD' ? purchasePrice * ccl : purchasePrice;
+            const adjustedCurrent = currency === 'USD' ? currentPrice * ccl : currentPrice;
+
+            // Debug: revisar valores de cada inversión
+            console.log({ quantity, purchasePrice, currentPrice, currency, adjustedPurchase, adjustedCurrent });
+
+            invested += adjustedPurchase * quantity;
+            current += adjustedCurrent * quantity;
           }
         });
 
         console.log('Total invertido calculado:', invested);
 
-        setTotalInvested(invested);
-        setCurrentValue(current);
+        setTotalInvested(Number(invested.toFixed(2)));
+        setCurrentValue(Number(current.toFixed(2)));
 
         const profit = current - invested;
         setProfit(profit);

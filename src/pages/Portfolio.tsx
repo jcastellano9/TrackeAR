@@ -679,13 +679,12 @@ const Portfolio: React.FC = () => {
     const formatter = new Intl.NumberFormat('es-AR', {
       style: 'currency',
       currency: currency,
-      minimumFractionDigits: 0,
-      maximumFractionDigits: 0,
+      minimumFractionDigits: currency === 'USD' ? 2 : 0,
+      maximumFractionDigits: currency === 'USD' ? 2 : 0,
       notation: 'standard',
       useGrouping: true
     });
-
-    return formatter.format(Math.round(value));
+    return formatter.format(value);
   };
 
   // Calcular totales en ARS y USD y visualización dinámica
@@ -777,7 +776,7 @@ const Portfolio: React.FC = () => {
 
   // Calcular total de tenencias para asignación usando marketPrices y lógica coherente con la visualización
   const totalTenencia = displayedInvestments.reduce((acc, inv) => {
-    const key = inv.ticker.toUpperCase() + '-' + inv.type;
+    const key = getAssetKey(inv);
     const price = marketPrices[key] ?? inv.purchasePrice;
     const adjustedPrice = showInARS
       ? inv.currency === 'USD' && cclPrice
@@ -792,17 +791,11 @@ const Portfolio: React.FC = () => {
   // --- RESUMEN GLOBAL PARA TARJETAS "Actual" y "Resultado" ---
   const resumenGlobal = displayedInvestments.reduce(
     (acc, inv) => {
-      const key = inv.ticker.toUpperCase() + '-' + inv.type;
+      const key = getAssetKey(inv);
+      const ppcKey = getNormalizedPpcKey(inv);
       const currentPrice = marketPrices[key] ?? inv.purchasePrice;
 
-      const returnData = calculateReturn(
-        currentPrice,
-        ppcMap[key] ?? inv.purchasePrice,
-        inv.currency,
-        showInARS,
-        cclPrice
-      );
-
+      // Conversiones: ambos precios a la moneda de visualización
       const priceUnit = showInARS
         ? inv.currency === 'USD' && cclPrice
           ? currentPrice * cclPrice
@@ -811,13 +804,30 @@ const Portfolio: React.FC = () => {
           ? currentPrice / cclPrice
           : currentPrice;
 
+      const ppcUnit = showInARS
+        ? inv.currency === 'USD' && cclPrice
+          ? (ppcMap[ppcKey] ?? inv.purchasePrice) * cclPrice
+          : (ppcMap[ppcKey] ?? inv.purchasePrice)
+        : inv.currency === 'ARS' && cclPrice
+          ? (ppcMap[ppcKey] ?? inv.purchasePrice) / cclPrice
+          : (ppcMap[ppcKey] ?? inv.purchasePrice);
+
+      const returnData = calculateReturn(
+        priceUnit,
+        ppcUnit,
+        showInARS ? 'ARS' : 'USD',
+        false,
+        null
+      );
+
       const valorActual = priceUnit * inv.quantity;
       const cambioAbsoluto = returnData.amount * inv.quantity;
 
+      // Usar ppcUnit * inv.quantity para el invertido, así todo queda en la moneda visualizada
       return {
         valorActual: acc.valorActual + valorActual,
         cambioTotal: acc.cambioTotal + cambioAbsoluto,
-        invertido: acc.invertido + inv.purchasePrice * inv.quantity
+        invertido: acc.invertido + ppcUnit * inv.quantity
       };
     },
     { valorActual: 0, cambioTotal: 0, invertido: 0 }
@@ -971,9 +981,13 @@ const Portfolio: React.FC = () => {
 
           {/* Actual */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
-            resumenGlobal.valorActual >= resumenGlobal.invertido
-              ? 'bg-green-50 text-green-700'
-              : 'bg-red-50 text-red-700'
+            (() => {
+              const actual = resumenGlobal.valorActual;
+              const invertido = resumenGlobal.invertido;
+              if (actual > invertido) return 'bg-green-50 text-green-700';
+              if (actual < invertido) return 'bg-red-50 text-red-700';
+              return 'bg-blue-50 text-blue-700';
+            })()
           }`}>
             <h3>Actual</h3>
             <p className="text-xl font-bold mt-1">
@@ -983,9 +997,13 @@ const Portfolio: React.FC = () => {
 
           {/* Resultado */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
-            resumenGlobal.valorActual >= resumenGlobal.invertido
-              ? 'bg-green-50 text-green-700'
-              : 'bg-red-50 text-red-700'
+            (() => {
+              const actual = resumenGlobal.valorActual;
+              const invertido = resumenGlobal.invertido;
+              if (actual > invertido) return 'bg-green-50 text-green-700';
+              if (actual < invertido) return 'bg-red-50 text-red-700';
+              return 'bg-blue-50 text-blue-700';
+            })()
           }`}>
             <h3>Resultado</h3>
             <p className="text-xl font-bold mt-1">
@@ -1077,21 +1095,21 @@ const Portfolio: React.FC = () => {
                   <tr className="text-left border-b border-gray-200">
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center"> {/* Corazón (favorito) */} </th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ticker</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Nombre</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Precio actual</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cambio absoluto ($)</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Variación porcentual (%)</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Cantidad</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Precio Promedio de Compra (PPC)</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Valor total actual</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Nombre</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Precio</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio $</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio %</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cantidad</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">PPC</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Valor</th>
                     {!mergeTransactions && (
-                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Fecha de compra</th>
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Fecha</th>
                     )}
                     {!mergeTransactions && (
-                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Asignación en cartera (%)</th>
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Asignación</th>
                     )}
                     {!mergeTransactions && (
-                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Editar / Eliminar</th>
+                      <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Acciones</th>
                     )}
                   </tr>
                   </thead>
