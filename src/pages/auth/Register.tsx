@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { UserPlus, AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
 
 const Register: React.FC = () => {
-  const { signUp } = useAuth();
+  const { signUp, signOut } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -15,6 +15,7 @@ const Register: React.FC = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
@@ -53,6 +54,8 @@ const Register: React.FC = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(null);
+    setSuccess(null);
 
     // Validation
     if (!email || !password) {
@@ -73,14 +76,36 @@ const Register: React.FC = () => {
     try {
       setLoading(true);
       setError(null);
+      setSuccess(null);
 
-      const { error: signUpError } = await signUp(email, password);
+      const { error: signUpError } = await signUp(email, password, {
+        emailRedirectTo: `${window.location.origin}/confirm`
+      });
 
       if (signUpError) {
-        throw new Error(signUpError.message || 'Error al registrarse');
+        if (
+          signUpError.message &&
+          (
+            signUpError.message.toLowerCase().includes('already registered') ||
+            signUpError.message.toLowerCase().includes('user already registered') ||
+            signUpError.message.toLowerCase().includes('duplicate')
+          )
+        ) {
+          setError('El usuario ya está registrado. Por favor, iniciá sesión o recuperá tu contraseña.');
+          setLoading(false);
+          return;
+        }
+        setError(signUpError.message || 'Error al registrarse');
+        setLoading(false);
+        return;
       }
 
-      navigate('/');
+      await signOut();
+      setSuccess('¡Registro exitoso! Por favor, confirmá tu correo electrónico desde el mail que te enviamos para poder iniciar sesión.');
+      setLoading(false);
+      setTimeout(() => {
+        navigate('/login?verify=1');
+      }, 3000);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al registrarse');
     } finally {
@@ -104,6 +129,12 @@ const Register: React.FC = () => {
             <p className="text-gray-600 dark:text-gray-300 mt-2">Crear cuenta nueva</p>
           </div>
 
+          {success && (
+            <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700 dark:bg-green-900 dark:border-green-600 dark:text-green-200">
+              <Check size={18} className="mr-2 flex-shrink-0" />
+              <span>{success}</span>
+            </div>
+          )}
           {error && (
             <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 dark:bg-red-900 dark:border-red-600 dark:text-red-200">
               <AlertCircle size={18} className="mr-2 flex-shrink-0" />

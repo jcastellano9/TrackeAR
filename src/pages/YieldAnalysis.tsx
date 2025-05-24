@@ -58,8 +58,81 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
         const plazosData = await plazosRes.json();
         const criptoData = await criptoRes.json();
 
+        // Fetch Prex detail from Comparatasas
+        const prexRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Allaria%20Ahorro%20-%20Clase%20A');
+        const prexJson = await prexRes.json();
+        const prexTna = prexJson?.detalle?.rendimientos?.diario?.tna || 0;
 
-        setBilleteras(billeterasData);
+        // Fetch Cocos detail from Comparatasas
+        const cocosRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Cocos%20Daruma%20Renta%20Mixta%20-%20Clase%20A');
+        const cocosJson = await cocosRes.json();
+        const cocosTna = cocosJson?.detalle?.rendimientos?.diario?.tna || 0;
+
+        // Fetch Personal Pay detail from Comparatasas
+        const personalPayRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Delta%20Pesos%20-%20Clase%20X');
+        const personalPayJson = await personalPayRes.json();
+        const personalPayTna = personalPayJson?.detalle?.rendimientos?.diario?.tna || 0;
+
+        // Fetch MercadoPago detail from Comparatasas
+        const mercadoPagoRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Mercado%20Pago%20-%20Clase%20A');
+        const mercadoPagoJson = await mercadoPagoRes.json();
+        const mercadoPagoTna = mercadoPagoJson?.detalle?.rendimientos?.diario?.tna || 0;
+
+        // Fetch LB Finanzas detail from Comparatasas
+        const lbRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/ST%20Zero%20-%20Clase%20D');
+        const lbJson = await lbRes.json();
+        const lbTna = lbJson?.detalle?.rendimientos?.diario?.tna || 0;
+
+        // Fetch Lemon fondo detail from Comparatasas
+        const lemonRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Fima%20Premium%20-%20Clase%20P');
+        const lemonJson = await lemonRes.json();
+        const lemonTna = lemonJson?.detalle?.rendimientos?.diario?.tna || 0;
+
+        setBilleteras(
+          billeterasData
+            .concat({
+              nombre: 'Prex',
+              tna: prexTna,
+              limite: 0,
+              url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Allaria%20Ahorro%20-%20Clase%20A',
+            })
+            .concat({
+              nombre: 'Cocos',
+              tna: cocosTna,
+              limite: 0,
+              url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Cocos%20Daruma%20Renta%20Mixta%20-%20Clase%20A',
+            })
+            .concat({
+              nombre: 'Personal Pay',
+              tna: personalPayTna,
+              limite: 0,
+              url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Delta%20Pesos%20-%20Clase%20X',
+            })
+            .concat({
+              nombre: 'MercadoPago',
+              tna: mercadoPagoTna,
+              limite: 0,
+              url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Mercado%20Pago%20-%20Clase%20A',
+            })
+            .concat({
+              nombre: 'LB Finanzas',
+              tna: lbTna,
+              limite: 0,
+              url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/ST%20Zero%20-%20Clase%20D',
+            })
+            .concat({
+              nombre: 'AstroPay',
+              tna: lbTna,
+              limite: 0,
+              url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/ST%20Zero%20-%20Clase%20D',
+            })
+            .concat({
+              nombre: 'Lemon',
+              tna: lemonTna,
+              limite: 0,
+              url: 'https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Fima%20Premium%20-%20Clase%20P',
+            })
+        );
         setPlazosFijos(plazosData);
         setCripto(criptoData);
       } catch (err: any) {
@@ -109,17 +182,65 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
   };
 
   const iconMap: Record<string, string> = {
-    'buenbit': '/icons/buenbit.svg',
-    'fiwind': '/icons/fiwind.svg',
-    'letsbit': '/icons/letsbit.svg',
+    'astropay': '/icons/astropay.svg',
     'belo': '/icons/belo.svg',
-    'lemoncash': '/icons/lemoncash.svg',
-    'ripio': '/icons/ripio.svg',
-    'satoshitango': '/icons/satoshitango.svg',
-    'cocos': '/icons/cocos.svg',
-    'prex': '/icons/prex.svg',
-    'lb': '/icons/lb.svg',
+    'brubank': '/icons/brubank.svg',
+    'buenbit': '/icons/buenbit.svg',
+    'cabal': '/icons/cabal.svg',
+    'claro-pay': '/icons/claro-pay.svg',
+    'cocos': '/icons/cocos-crypto.svg',
+    'cuenta-dni': '/icons/cuenta-dni.svg',
+    'dolar-app': '/icons/dolar-app.svg',
+    'fiwind': '/icons/fiwind.svg',
+    'lemon': '/icons/lemon.svg',
+    'lemoncash': '/icons/lemon.svg',
+    'lb-finanzas': '/icons/letsbit.svg',
     'mercadopago': '/icons/mercadopago.svg',
+    'modo': '/icons/modo.svg',
+    'naranja': '/icons/naranja-x.svg',
+    'openbank': '/icons/openbank.svg',
+    'ppay': '/icons/personal-pay.svg',
+    'plus-crypto': '/icons/plus-crypto.svg',
+    'prex': '/icons/prex.svg',
+    'ripio': '/icons/ripio.svg',
+    'satoshitango': '/icons/satoshi-tango.svg',
+    'supervielle': '/icons/supervielle.svg',
+    'uala': '/icons/uala.svg',
+    'wallbit': '/icons/wallbit.svg',
+    'yoy': '/icons/yoy.svg',
+    'banco-bica': '/icons/banco-bica.svg',
+    'banco-ciudad': '/icons/banco-ciudad.svg',
+    'banco-cmf': '/icons/banco-cmf.svg',
+    'banco-credicoop': '/icons/banco-credicoop.svg',
+    'banco-corrientes': '/icons/banco-corrientes.svg',
+    'banco-del-chubut': '/icons/banco-del-chubut.svg',
+    'banco-del-sol': '/icons/banco-del-sol.svg',
+    'banco-dino': '/icons/banco-dino.svg',
+    'banco-julio': '/icons/banco-julio.svg',
+    'banco-mariva': '/icons/banco-mariva.svg',
+    'banco-meridian': '/icons/banco-meridian.svg',
+    'banco-masventas': '/icons/banco-masventas.svg',
+    'banco-comafi': '/icons/banco-comafi.svg',
+    'banco-galicia': '/icons/banco-galicia.svg',
+    'banco-hipotecario': '/icons/banco-hipotecario.svg',
+    'banco-macro': '/icons/banco-macro.svg',
+    'banco-nacion': '/icons/banco-nacion.svg',
+    'banco-nación': '/icons/banco-nacion.svg',
+    'banco-provincia': '/icons/banco-provincia.svg',
+    'banco-santander': '/icons/banco-santander.svg',
+    'banco-provincia-del-neuquen': '/icons/banco-provincia.svg',
+    'letsbit': '/icons/letsbit.svg',
+    'naranja-x': '/icons/naranja-x.svg',
+    'plus': '/icons/plus-crypto.svg',
+    'plus-inversiones': '/icons/plus-crypto.svg',
+    'binance': '/icons/binance.svg',
+    'binace': '/icons/binance.svg',
+    'tienda-crypto': '/icons/tienda-crypto.svg',
+    'decrypto': '/icons/decrypto.svg',
+    'cocos-crypto': '/icons/cocos-crypto.svg',
+    'takenos': '/icons/takenos.svg',
+    'banco-ggal-sa': '/icons/banco-galicia.svg',
+    'lbfinanzas': '/icons/letsbit.svg',
   };
 
   // Barra de navegación para cambiar de sección
@@ -217,7 +338,7 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
                             target.dataset.fallback = 'true';
                           }
                         }}
-                        className="w-10 h-10 object-contain"
+                        className="w-12 h-12 object-contain rounded-full bg-white p-1.5 shadow border border-gray-200 dark:border-gray-600"
                       />
                       <div>
                         <h4 className="font-semibold text-gray-800 dark:text-gray-100">{p.entidad}</h4>
@@ -241,7 +362,7 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
                             target.dataset.fallback = 'true';
                           }
                         }}
-                        className="w-10 h-10 object-contain"
+                        className="w-12 h-12 object-contain rounded-full bg-white p-1.5 shadow border border-gray-200 dark:border-gray-600"
                       />
                       <div>
                         <h4 className="font-semibold text-gray-800 dark:text-gray-100">{p.entidad}</h4>
@@ -282,11 +403,15 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
                             target.dataset.fallback = 'true';
                           }
                         }}
-                        className="w-8 h-8 object-contain"
+                        className="w-12 h-12 object-contain rounded-full bg-white p-1.5 shadow border border-gray-200 dark:border-gray-600"
                       />
                       <div>
                         <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-lg">{b.nombre}</h4>
-                        <p className="text-xs text-gray-600 dark:text-gray-300 font-semibold mt-1">Límite: ${b.limite.toLocaleString()}</p>
+                        {b.limite > 0 && (
+                          <p className="text-xs text-gray-600 dark:text-gray-300 font-semibold mt-1">
+                            Límite: ${b.limite.toLocaleString()}
+                          </p>
+                        )}
                       </div>
                     </a>
                   ) : (
@@ -308,11 +433,15 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
                             target.dataset.fallback = 'true';
                           }
                         }}
-                        className="w-8 h-8 object-contain"
+                        className="w-12 h-12 object-contain rounded-full bg-white p-1.5 shadow border border-gray-200 dark:border-gray-600"
                       />
                       <div>
                         <h4 className="font-semibold text-gray-800 dark:text-gray-100 text-lg">{b.nombre}</h4>
-                        <p className="text-xs text-gray-600 dark:text-gray-300 font-semibold mt-1">Límite: ${b.limite.toLocaleString()}</p>
+                        {b.limite > 0 && (
+                          <p className="text-xs text-gray-600 dark:text-gray-300 font-semibold mt-1">
+                            Límite: ${b.limite.toLocaleString()}
+                          </p>
+                        )}
                       </div>
                     </div>
                   );
@@ -352,7 +481,7 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
                                       target.dataset.fallback = 'true';
                                     }
                                   }}
-                                  className="w-6 h-6 object-contain"
+                                  className="w-6 h-6 object-contain rounded-full bg-white p-1 shadow-sm"
                                 />
                                 <span className="text-xs font-medium text-gray-800 dark:text-gray-100">{entidad.entidad}</span>
                               </a>
@@ -369,7 +498,7 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
                                       target.dataset.fallback = 'true';
                                     }
                                   }}
-                                  className="w-6 h-6 object-contain"
+                                  className="w-6 h-6 object-contain rounded-full bg-white p-1 shadow-sm"
                                 />
                                 <span className="text-xs font-medium text-gray-800 dark:text-gray-100">{entidad.entidad}</span>
                               </div>

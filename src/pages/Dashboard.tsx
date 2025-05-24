@@ -5,15 +5,15 @@ import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { Line, Doughnut } from 'react-chartjs-2';
-import { 
-  Chart as ChartJS, 
-  CategoryScale, 
-  LinearScale, 
-  PointElement, 
-  LineElement, 
-  Title, 
-  Tooltip, 
-  Legend, 
+import {
+  Chart as ChartJS,
+  CategoryScale,
+  LinearScale,
+  PointElement,
+  LineElement,
+  Title,
+  Tooltip,
+  Legend,
   ArcElement,
   Filler
 } from 'chart.js';
@@ -227,6 +227,8 @@ const Dashboard: React.FC = () => {
           .select('*')
           .eq('user_id', user.id);
 
+        console.log('Inversiones obtenidas:', data);
+
         if (error) throw error;
 
         // Simulando CCL fijo por ahora (mejor: traer desde una tabla de cotizaciones si la tenés)
@@ -236,25 +238,41 @@ const Dashboard: React.FC = () => {
         let current = 0;
 
         data.forEach((inv) => {
-          const quantity = inv.quantity;
-          const purchasePrice = inv.purchase_price;
-          const currentPrice = inv.current_price;
+          const quantity = Number(inv.quantity ?? 0);
           const currency = inv.currency;
+          const purchasePrice = Number(
+            typeof inv.purchase_price === 'number'
+              ? inv.purchase_price
+              : inv.purchase_price?.toString().replace(',', '.') ?? 0
+          );
+          const currentPrice = Number(
+            typeof inv.current_price === 'number'
+              ? inv.current_price
+              : inv.current_price?.toString().replace(',', '.') ?? 0
+          );
 
-          const purchaseTotal = quantity * purchasePrice;
-          const currentTotal = quantity * currentPrice;
+          // Verificación de número válido
+          if (isNaN(purchasePrice) || isNaN(currentPrice)) {
+            console.warn('Inversión descartada por datos inválidos:', inv);
+            return;
+          }
 
-          if (currency === 'ARS') {
-            invested += purchaseTotal;
-            current += currentTotal;
-          } else if (currency === 'USD') {
-            invested += purchaseTotal * ccl;
-            current += currentTotal * ccl;
+          if (quantity > 0 && purchasePrice > 0 && currentPrice >= 0) {
+            const adjustedPurchase = currency === 'USD' ? purchasePrice * ccl : purchasePrice;
+            const adjustedCurrent = currency === 'USD' ? currentPrice * ccl : currentPrice;
+
+            // Debug: revisar valores de cada inversión
+            console.log({ quantity, purchasePrice, currentPrice, currency, adjustedPurchase, adjustedCurrent });
+
+            invested += adjustedPurchase * quantity;
+            current += adjustedCurrent * quantity;
           }
         });
 
-        setTotalInvested(invested);
-        setCurrentValue(current);
+        console.log('Total invertido calculado:', invested);
+
+        setTotalInvested(Number(invested.toFixed(2)));
+        setCurrentValue(Number(current.toFixed(2)));
 
         const profit = current - invested;
         setProfit(profit);
