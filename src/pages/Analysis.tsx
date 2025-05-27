@@ -1,11 +1,6 @@
-// Distintos análisis de rendimientos y cotizaciones
-
 import React, { useState, useEffect } from 'react';
 import YieldAnalysis from './YieldAnalysis';
-import { useSupabase } from '../contexts/SupabaseContext';
-import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { Line } from 'react-chartjs-2';
 import {
   Chart as ChartJS,
   CategoryScale,
@@ -17,7 +12,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { DollarSign, Bitcoin, Wallet, ArrowUpRight, ArrowDownRight, ExternalLink, Loader, TrendingUp, AlertCircle } from 'lucide-react';
+import { DollarSign, Bitcoin, Wallet, ArrowUpRight, ArrowDownRight, Loader, TrendingUp, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
 // Register ChartJS components
@@ -43,19 +38,6 @@ interface Quote {
   is24x7?: boolean;
 }
 
-interface Rate {
-  entity: string;
-  rate: number | null;
-  type: string;
-  term?: number;
-  minimumAmount?: number;
-}
-
-interface Sparkline {
-  entity: string;
-  data: number[];
-  labels: string[];
-}
 
 // Mapa de íconos para bancos y billeteras (usando claves slugificadas)
 const quoteIconMap: Record<string, string> = {
@@ -96,31 +78,11 @@ const quoteIconMap: Record<string, string> = {
   'cocos': '/icons/cocos.svg'
 };
 
-// Retry function with exponential backoff
-const retryWithBackoff = async (
-  fn: () => Promise<any>,
-  maxRetries: number = 3,
-  baseDelay: number = 1000
-): Promise<any> => {
-  for (let i = 0; i < maxRetries; i++) {
-    try {
-      return await fn();
-    } catch (error) {
-      if (i === maxRetries - 1) throw error;
-      const delay = baseDelay * Math.pow(2, i);
-      await new Promise(resolve => setTimeout(resolve, delay));
-    }
-  }
-};
-
 const Analysis: React.FC = () => {
-  const supabase = useSupabase();
-  const { user } = useAuth();
 
   // Active section states
-  const [activeMainSection, setActiveMainSection] = useState<'quotes'>('quotes');
+  const [activeMainSection, setActiveMainSection] = useState<'quotes' | 'rates'>('quotes');
   const [activeQuoteSection, setActiveQuoteSection] = useState<'dollar' | 'crypto' | 'pix'>('dollar');
-  const [activeAnalysisSection, setActiveAnalysisSection] = useState<'summary' | 'yield'>('summary');
 
   // Data states
   const [dollarQuotes, setDollarQuotes] = useState<Quote[]>([]);
@@ -249,7 +211,7 @@ const Analysis: React.FC = () => {
           ? comparaRes.data.map((q: any) => ({
               name: q.name
                 .split(' ')
-                .map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
+                .map((w: string) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase())
                 .join(' '),
               buy: typeof q.bid === 'number' ? q.bid : null,
               sell: typeof q.ask === 'number' ? q.ask : null,
@@ -735,7 +697,11 @@ return (
 
             const bestBuy = quotes.reduce((a, b) => (b.buy !== null && (a.buy === null || b.buy < a.buy) ? b : a), quotes[0]);
             const bestSell = quotes.reduce((a, b) => (b.sell !== null && (a.sell === null || b.sell > a.sell) ? b : a), quotes[0]);
-            const bestSpread = quotes.reduce((a, b) => (b.spread !== null && (a.spread === null || b.spread < a.spread) ? b : a), quotes[0]);
+            const bestSpread = quotes.reduce((a: Quote, b: Quote) =>
+              b.spread != null && (a.spread == null || b.spread! < a.spread!)
+                ? b
+                : a
+            , quotes[0]);
 
             const BestCard = ({ title, value, entity }: { title: string, value: string, entity: Quote }) => (
               <div className="rounded-xl p-4 border flex-1 bg-blue-50 dark:bg-blue-900 border-blue-300 dark:border-blue-600">
@@ -845,7 +811,7 @@ return (
         <div className="mt-10">
           <h2 className="text-xl font-semibold text-gray-700 dark:text-gray-200 mb-4 flex items-center space-x-2">
           </h2>
-          <YieldAnalysis />
+          <YieldAnalysis activeSection="plazos" />
         </div>
       )}
   </div>

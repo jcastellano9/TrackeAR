@@ -7,7 +7,7 @@ import { motion } from 'framer-motion';
 import { UserPlus, AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
 
 const Register: React.FC = () => {
-  const { signUp, signOut } = useAuth();
+  const { signUp } = useAuth();
   const navigate = useNavigate();
 
   const [email, setEmail] = useState('');
@@ -78,29 +78,8 @@ const Register: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-      const { error: signUpError } = await signUp(email, password, {
-        emailRedirectTo: `${window.location.origin}/confirm`
-      });
 
-      if (signUpError) {
-        if (
-          signUpError.message &&
-          (
-            signUpError.message.toLowerCase().includes('already registered') ||
-            signUpError.message.toLowerCase().includes('user already registered') ||
-            signUpError.message.toLowerCase().includes('duplicate')
-          )
-        ) {
-          setError('El usuario ya está registrado. Por favor, iniciá sesión o recuperá tu contraseña.');
-          setLoading(false);
-          return;
-        }
-        setError(signUpError.message || 'Error al registrarse');
-        setLoading(false);
-        return;
-      }
-
-      await signOut();
+      await signUp(email, password);
       setSuccess('¡Registro exitoso! Por favor, confirmá tu correo electrónico desde el mail que te enviamos para poder iniciar sesión.');
       setLoading(false);
       setTimeout(() => {

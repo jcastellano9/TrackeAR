@@ -1,6 +1,7 @@
 // Página principal con resúmenes y cotizaciones
 
 import React, { useEffect, useState } from 'react';
+import { usePortfolioData } from '../hooks/usePortfolioData';
 import { useSupabase } from '../contexts/SupabaseContext';
 import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
@@ -17,7 +18,7 @@ import {
   ArcElement,
   Filler
 } from 'chart.js';
-import { ArrowUpRight, ArrowDownRight, DollarSign, TrendingUp, Loader, ExternalLink } from 'lucide-react';
+import { ArrowUpRight, ArrowDownRight, DollarSign, TrendingUp, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 
 // Register ChartJS components
@@ -51,12 +52,20 @@ const Dashboard: React.FC = () => {
   const supabase = useSupabase();
   const { user } = useAuth();
 
-  // Dashboard data states
-  const [loading, setLoading] = useState(true);
-  const [totalInvested, setTotalInvested] = useState(0);
-  const [currentValue, setCurrentValue] = useState(0);
-  const [profit, setProfit] = useState(0);
-  const [profitPercentage, setProfitPercentage] = useState(0);
+  const {
+    investments,
+    loading: loadingDashboard,
+    error: dashboardError,
+    resumenGlobalTotal,
+    cclPrice,
+    marketPrices,
+    resumenPorTipo,
+  } = usePortfolioData();
+  const totalInvested = resumenGlobalTotal.invertido;
+  const currentValue = resumenGlobalTotal.valorActual;
+  const profit = resumenGlobalTotal.cambioTotal;
+  const profitPercentage = totalInvested > 0 ? (profit / totalInvested) * 100 : 0;
+
 
   // Market data states
   const [dollarQuotes, setDollarQuotes] = useState<DollarQuote[]>([]);
@@ -77,15 +86,21 @@ const Dashboard: React.FC = () => {
         if (rawData && rawData.length > 0) {
           const today = new Date();
           const recentEntry = rawData
-            .map((entry: any) => ({
+            .map((entry: [string, number | null]): { date: Date; value: number | null } => ({
               date: new Date(entry[0]),
               value: entry[1]
             }))
-            .filter(entry => entry.date <= today && entry.value !== null)
-            .sort((a, b) => b.date.getTime() - a.date.getTime())[0];
+            .filter(
+              (entry: { date: Date; value: number | null }): entry is { date: Date; value: number } =>
+                entry.date <= today && entry.value !== null
+            )
+            .sort(
+              (a: { date: Date; value: number }, b: { date: Date; value: number }) =>
+                b.date.getTime() - a.date.getTime()
+            )[0];
 
           if (recentEntry) {
-            setLastInflation(recentEntry.value * 100);
+            setLastInflation(recentEntry.value! * 100);
             setLastInflationDate(recentEntry.date.toISOString().split('T')[0]);
           } else {
             console.warn("No hay datos de inflación recientes.");
@@ -102,23 +117,21 @@ const Dashboard: React.FC = () => {
     };
     fetchInflationData();
   }, []);
-  const [portfolioData, setPortfolioData] = useState({
-    labels: ['Cripto', 'CEDEARs', 'Acciones'],
-    datasets: [{
-      data: [30, 40, 30], // Distribución de ejemplo
-      backgroundColor: [
-        '#F97316', // Cripto
-        '#A855F7', // CEDEARs
-        '#0EA5E9'  // Acciones (nuevo - celeste)
-      ],
-      borderColor: [
-        '#EA580C',
-        '#9333EA',
-        '#0284C7' // nuevo - celeste oscuro
-      ],
-      borderWidth: 1,
-    }]
-  });
+
+  // Portfolio distribution using resumenPorTipo from hook
+  const distributionData = React.useMemo(() => {
+    const labels = Object.keys(resumenPorTipo) as Array<'Cripto' | 'CEDEAR' | 'Acción'>;
+    const data = labels.map(label => resumenPorTipo[label]);
+    return {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: ['#F97316','#A855F7','#0EA5E9'],
+        borderColor: ['#EA580C','#9333EA','#0284C7'],
+        borderWidth: 1,
+      }]
+    };
+  }, [resumenPorTipo]);
 
   // Temporal filter state for capital evolution chart
   const [selectedRange, setSelectedRange] = useState('1Y');
@@ -154,12 +167,6 @@ const Dashboard: React.FC = () => {
     ]
   });
 
-  // Estado base para agrupar por tipo de inversión (preparado para lógica futura)
-  const [groupedCapitalData, setGroupedCapitalData] = useState({
-    cripto: [],
-    cedears: [],
-    acciones: []
-  });
 
   // --- Capital evolution chart temporal filter logic ---
   const allLabels = ['Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
@@ -215,77 +222,6 @@ const Dashboard: React.FC = () => {
     setCapitalData(filteredData);
   }, [selectedRange]);
 
-  // Fetch dashboard data
-  useEffect(() => {
-    const fetchDashboardData = async () => {
-      if (!user) return;
-
-      try {
-        // Supongamos que tus inversiones ya están cargadas desde Supabase o Portfolio
-        const { data, error } = await supabase
-          .from('investments')
-          .select('*')
-          .eq('user_id', user.id);
-
-        console.log('Inversiones obtenidas:', data);
-
-        if (error) throw error;
-
-        // Simulando CCL fijo por ahora (mejor: traer desde una tabla de cotizaciones si la tenés)
-        const ccl = 1100;
-
-        let invested = 0;
-        let current = 0;
-
-        data.forEach((inv) => {
-          const quantity = Number(inv.quantity ?? 0);
-          const currency = inv.currency;
-          const purchasePrice = Number(
-            typeof inv.purchase_price === 'number'
-              ? inv.purchase_price
-              : inv.purchase_price?.toString().replace(',', '.') ?? 0
-          );
-          const currentPrice = Number(
-            typeof inv.current_price === 'number'
-              ? inv.current_price
-              : inv.current_price?.toString().replace(',', '.') ?? 0
-          );
-
-          // Verificación de número válido
-          if (isNaN(purchasePrice) || isNaN(currentPrice)) {
-            console.warn('Inversión descartada por datos inválidos:', inv);
-            return;
-          }
-
-          if (quantity > 0 && purchasePrice > 0 && currentPrice >= 0) {
-            const adjustedPurchase = currency === 'USD' ? purchasePrice * ccl : purchasePrice;
-            const adjustedCurrent = currency === 'USD' ? currentPrice * ccl : currentPrice;
-
-            // Debug: revisar valores de cada inversión
-            console.log({ quantity, purchasePrice, currentPrice, currency, adjustedPurchase, adjustedCurrent });
-
-            invested += adjustedPurchase * quantity;
-            current += adjustedCurrent * quantity;
-          }
-        });
-
-        console.log('Total invertido calculado:', invested);
-
-        setTotalInvested(Number(invested.toFixed(2)));
-        setCurrentValue(Number(current.toFixed(2)));
-
-        const profit = current - invested;
-        setProfit(profit);
-        setProfitPercentage(invested > 0 ? (profit / invested) * 100 : 0);
-        setLoading(false);
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-        setLoading(false);
-      }
-    };
-
-    fetchDashboardData();
-  }, [user]);
 
   // Fetch market data
   useEffect(() => {
@@ -312,8 +248,8 @@ const Dashboard: React.FC = () => {
         try {
           const res = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=ars,usd&include_24hr_change=true');
           const data = res.data;
-          // No CCL disponible, usar 1100 como fallback
-          const cclRate = 1100;
+          // Usar CCL real desde hook
+          const cclRate = cclPrice ?? 1;
           const formattedCryptoQuotes: CryptoQuote[] = [
             { name: 'USDT', price: data['tether'].ars, variation: data['tether'].ars_24h_change },
             { name: 'USDC', price: data['usd-coin'].ars, variation: data['usd-coin'].ars_24h_change },
@@ -404,26 +340,7 @@ const Dashboard: React.FC = () => {
     }).format(value);
   };
 
-  // Get best dollar buy rate
-  const getBestBuyRate = () => {
-    if (dollarQuotes.length === 0) return null;
 
-    return dollarQuotes.reduce((prev, current) =>
-      prev.buy < current.buy ? prev : current
-    );
-  };
-
-  // Get best dollar sell rate
-  const getBestSellRate = () => {
-    if (dollarQuotes.length === 0) return null;
-
-    return dollarQuotes.reduce((prev, current) =>
-      prev.sell > current.sell ? prev : current
-    );
-  };
-
-  const bestBuy = getBestBuyRate();
-  const bestSell = getBestSellRate();
 
   return (
     <div className="space-y-6">
@@ -448,7 +365,7 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Invertido</p>
-              {loading ? (
+              {loadingDashboard ? (
                 <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1"></div>
               ) : (
                 <p className="text-xl font-bold text-gray-800 dark:text-gray-100 mt-1">{formatARS(totalInvested)}</p>
@@ -470,7 +387,7 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Valor Actual</p>
-              {loading ? (
+              {loadingDashboard ? (
                 <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1"></div>
               ) : (
                 <p className="text-xl font-bold text-gray-800 dark:text-gray-100 mt-1">{formatARS(currentValue)}</p>
@@ -492,7 +409,7 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ganancia/Pérdida</p>
-              {loading ? (
+              {loadingDashboard ? (
                 <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1"></div>
               ) : (
                 <div className="flex items-center mt-1">
@@ -527,7 +444,7 @@ const Dashboard: React.FC = () => {
           <div className="flex justify-between items-start">
             <div>
               <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Rendimiento</p>
-              {loading ? (
+              {loadingDashboard ? (
                 <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1"></div>
               ) : (
                 <div className="flex items-center mt-1">
@@ -552,6 +469,13 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
       </div>
+
+      {/* Dashboard error handling */}
+      {dashboardError && (
+        <div className="bg-red-100 text-red-700 px-4 py-3 rounded mt-4">
+          Error cargando datos del dashboard: {dashboardError.message || dashboardError.toString()}
+        </div>
+      )}
 
       {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -595,18 +519,19 @@ const Dashboard: React.FC = () => {
         >
           <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Distribución del Portfolio</h2>
           <div className="flex flex-col items-center justify-center h-full py-6">
-            <div className="h-64">
-              <Doughnut data={portfolioData} options={doughnutOptions} />
+            <div className="w-full">
+              <div className="h-64">
+                <Doughnut data={distributionData} options={doughnutOptions} />
+              </div>
             </div>
             {/* Custom legend */}
             <div className="mt-6 text-sm text-gray-700 dark:text-gray-300">
               <ul className="flex flex-col items-center gap-2">
-                {portfolioData.labels.map((label, i) => {
-                  const value = portfolioData.datasets[0].data[i];
-                  const total = portfolioData.datasets[0].data.reduce((acc, val) => acc + val, 0);
+                {distributionData.labels.map((label, i) => {
+                  const value = distributionData.datasets[0].data[i];
+                  const total = distributionData.datasets[0].data.reduce((acc, val) => acc + val, 0);
                   const percent = ((value / total) * 100).toFixed(1);
-                  const color = portfolioData.datasets[0].backgroundColor[i];
-
+                  const color = distributionData.datasets[0].backgroundColor[i];
                   return (
                     <li
                       key={i}

@@ -1,10 +1,8 @@
 // Herramientas para simular inversiones y cuotas
 
 import React, { useState, useEffect } from 'react';
-import { useSupabase } from '../contexts/SupabaseContext';
-import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { Calculator, Landmark, Wallet, Bitcoin, ArrowRight, AlertCircle, Check } from 'lucide-react';
+import { Calculator, Landmark, Wallet, Bitcoin, AlertCircle, Check } from 'lucide-react';
 import axios from 'axios';
 
 interface Rate {
@@ -23,8 +21,7 @@ interface SimulationResult {
 }
 
 const Simulator: React.FC = () => {
-  const supabase = useSupabase();
-  const { user } = useAuth();
+
 
   // Simulation type state
   const [simulationType, setSimulationType] = useState<'fixed' | 'wallet' | 'crypto' | 'installments'>('fixed');
@@ -48,7 +45,6 @@ const Simulator: React.FC = () => {
 
   // Error and validation states
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
   // Cuotas vs Contado states
   const [cashPrice, setCashPrice] = useState('');
@@ -68,11 +64,10 @@ const Simulator: React.FC = () => {
 
   // Fetch rates on component mount (integración real)
   useEffect(() => {
-    setLoading(true);
 
     const fetchRates = async () => {
       try {
-        // Plazo fijo - desde Comparatasas
+        // Plazo fijo
         const fixedRes = await axios.get('https://api.comparatasas.ar/plazos-fijos');
         const fixedData = fixedRes.data.map((item: any) => ({
           entity: item.entidad,
@@ -159,7 +154,7 @@ const Simulator: React.FC = () => {
         const walletData = Array.from(walletMap.values());
         setWalletRates(walletData);
 
-        // Cripto - desde Comparatasas
+        // Cripto
         const cryptoRes = await axios.get('https://api.comparatasas.ar/v1/finanzas/rendimientos');
         const cryptoData: Rate[] = [];
 
@@ -181,7 +176,7 @@ const Simulator: React.FC = () => {
       } catch (err) {
         console.error('Error al obtener tasas:', err);
       } finally {
-        setLoading(false);
+        // setLoading(false);
       }
     };
 
@@ -279,7 +274,6 @@ const Simulator: React.FC = () => {
       return;
     }
     const inflationRate = monthlyInflation;
-    const inflationFactor = (1 + inflationRate / 100);
     const adjustedInstallments: number[] = [];
     let totalAdjusted = 0;
     for (let i = 0; i < count; i++) {
@@ -1013,7 +1007,7 @@ const Simulator: React.FC = () => {
                       Este cálculo utiliza <strong>interés compuesto diario</strong> para estimar el rendimiento. En la práctica, los plazos fijos suelen capitalizar mensualmente. La <strong>TNA puede variar</strong> según el banco, condiciones de cliente o decisiones del BCRA.
                     </div>
                   )}
-                  {simulationType === 'wallet' && (
+                    {simulationType === 'wallet' && (
                     <div className="mt-4 p-3 rounded-lg border text-sm bg-purple-50 border-purple-200 text-purple-700 dark:bg-purple-900/20 dark:border-purple-700 dark:text-purple-200">
                       Las billeteras virtuales remuneradas suelen liquidar rendimientos diarios. Este simulador utiliza <strong>interés compuesto diario</strong> sobre la TNA publicada por cada plataforma.
                     </div>

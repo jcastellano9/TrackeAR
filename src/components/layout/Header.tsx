@@ -8,7 +8,7 @@ import { LayoutDashboard, Briefcase, BarChart, Calculator, User, Menu, X, Sun, M
 import { motion } from 'framer-motion';
 
 const Header: React.FC = () => {
-  const { user, signOut } = useAuth();
+  const { signOut } = useAuth();
   const { isDark, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -54,7 +54,7 @@ const Header: React.FC = () => {
       <div className="container mx-auto px-4">
         <div className="flex justify-between items-center h-16">
           <div className="flex items-center">
-            <NavLink to="/" role="heading" aria-level="1">
+            <NavLink to="/" role="heading" aria-level={1}>
               <h1 className="text-2xl font-semibold bg-gradient-to-r from-blue-600 to-violet-600 bg-clip-text text-transparent">
                 TrackeAr
               </h1>

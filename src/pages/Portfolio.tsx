@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { useSupabase } from '../contexts/SupabaseContext';
-import { useAuth } from '../contexts/AuthContext';
+import { usePortfolioData } from '../hooks/usePortfolioData';
 import { motion } from 'framer-motion';
-import { Search, Plus, TrendingUp, TrendingDown, Loader, X, Check, AlertCircle, Calendar, DollarSign, Edit2, Trash, Heart, ArrowDownCircle } from 'lucide-react';
+import { Search, Plus, Loader, X, Calendar, DollarSign, Edit2, Trash, Heart, ArrowDownCircle } from 'lucide-react';
 
 interface Investment {
   id: string;
@@ -25,46 +24,32 @@ interface NewInvestment {
   purchasePrice: number;
   purchaseDate: string;
   currency: 'USD' | 'ARS';
+  allocation: number;
 }
 
-
-interface PredefinedAsset {
-  ticker: string;
-  name: string;
-  type: 'Cripto' | 'Acción' | 'CEDEAR';
-  logo: string;
-  price?: number;
-  id?: string;
-}
-
-// --- Función reutilizable para conversión de precios ---
-const convertPrice = (
-  value: number,
-  fromCurrency: 'USD' | 'ARS',
-  toCurrency: 'USD' | 'ARS',
-  cclPrice: number | null
-): number => {
-  if (!value || !cclPrice) return value;
-  if (fromCurrency === 'USD' && toCurrency === 'ARS') return value * cclPrice;
-  if (fromCurrency === 'ARS' && toCurrency === 'USD') return value / cclPrice;
-  return value;
-};
 
 const Portfolio: React.FC = () => {
-  const supabase = useSupabase();
-  const { user } = useAuth();
-
-  const [investments, setInvestments] = useState<Investment[]>([]);
-  const [loading, setLoading] = useState(true);
+  const {
+    investments,
+    loading,
+    error: fetchError,
+    cclPrice,
+    predefinedAssets,
+    marketPrices,
+    getAssetKey,
+    getNormalizedPpcKey,
+    addInvestment,
+    updateInvestment,
+    deleteInvestment,
+    toggleFavorite,
+    handleAssetSelect, // 👈 agregar esto
+    success,           // ✅ Add this
+    setSuccess,        // ✅ And this
+    exportToCSV        // ← add this line
+  } = usePortfolioData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
   const [assetSearchTerm, setAssetSearchTerm] = useState('');
-  const [selectedAsset, setSelectedAsset] = useState<PredefinedAsset | null>(null);
-  const [currentPrice, setCurrentPrice] = useState<number | null>(null);
-  const [fetchingPrice, setFetchingPrice] = useState(false);
-  const [cclPrice, setCclPrice] = useState<number | null>(null);
   // Nuevo estado para filtro por tipo de activo
   const [activeTypeFilter, setActiveTypeFilter] = useState<'Todos' | 'CEDEAR' | 'Cripto' | 'Acción'>('Todos');
   // Estado para unificar transacciones repetidas
@@ -73,15 +58,20 @@ const Portfolio: React.FC = () => {
   const [showInARS, setShowInARS] = useState(true);
   // Estado para orden de la tabla (ascendente/descendente por criterio)
   const [sortBy, setSortBy] = useState<
+    'favoritosFechaDesc' |                    // 💖 nuevo orden por defecto
     'tickerAZ' | 'tickerZA' |
     'gananciaPorcentajeAsc' | 'gananciaPorcentajeDesc' |
     'gananciaValorAsc' | 'gananciaValorDesc' |
     'tenenciaAsc' | 'tenenciaDesc' |
     'fechaAsc' | 'fechaDesc'
-  >('fechaDesc');
+  >('favoritosFechaDesc');
 
   // Estado para edición de inversión
   const [editId, setEditId] = useState<string | null>(null);
+
+  // Estado para activo seleccionado y precio actual en el modal de agregar inversión
+  const [selectedAsset, setSelectedAsset] = useState<any>(null);
+  const [_currentPrice, _setCurrentPrice] = useState<number | null>(null);
 
   // New investment form state
   const [newInvestment, setNewInvestment] = useState<NewInvestment>({
@@ -90,473 +80,18 @@ const Portfolio: React.FC = () => {
     type: 'CEDEAR',
     quantity: 0,
     purchasePrice: 0,
-    purchaseDate: new Date().toISOString().split('T')[0],
+    purchaseDate: new Date().toLocaleDateString('sv-SE'),
     currency: 'ARS',
+    allocation: 0,
   });
 
-  // Predefined assets state (dynamic)
-  const [predefinedAssets, setPredefinedAssets] = useState<PredefinedAsset[]>([]);
-  const [marketPrices, setMarketPrices] = useState<Record<string, number>>({});
 
-  // Fetch CCL price separately
-  useEffect(() => {
-    const fetchCCL = async () => {
-      try {
-        const res = await fetch('https://dolarapi.com/v1/dolares');
-        const data = await res.json();
-        const ccl = data.find((d: any) => d.casa === 'contadoconliqui');
-        if (ccl && ccl.venta) {
-          setCclPrice(Number(ccl.venta));
-        }
-      } catch (err) {
-        console.error('No se pudo obtener el precio CCL.', err);
-      }
-    };
-    fetchCCL();
-  }, []);
-
-  useEffect(() => {
-    const fetchAssets = async () => {
-      try {
-        // Criptos
-        const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd');
-        const data = await res.json();
-        const formattedAssets: PredefinedAsset[] = data.map((coin: any) => ({
-          ticker: coin.symbol.toUpperCase(),
-          name: coin.name,
-          type: 'Cripto',
-          logo: coin.image,
-          price: coin.current_price,
-          id: coin.id, // Agrega el id de CoinGecko
-        }));
-        // CEDEARs desde la nueva API
-        const cedearRes = await fetch('https://api.cedears.ar/cedears');
-        const cedearData = await cedearRes.json();
-        const cedears: PredefinedAsset[] = cedearData.map((item: any) => ({
-          ticker: item.ticker,
-          name: item.name,
-          type: 'CEDEAR',
-          logo: item.icon,
-          price: item.ars?.c,
-        }));
-        // Acciones desde nueva API
-        const accionesRes = await fetch('https://api.cedears.ar/acciones');
-        const accionesData = await accionesRes.json();
-        const acciones: PredefinedAsset[] = accionesData.map((item: any) => ({
-          ticker: item.ticker,
-          name: item.name,
-          type: 'Acción',
-          logo: item.icon,
-          price: item.ars?.c,
-        }));
-        setPredefinedAssets([...formattedAssets, ...cedears, ...acciones]);
-      } catch (error) {
-        console.error('Error fetching assets', error);
-      }
-    };
-    fetchAssets();
-  }, []);
-
-  // 1. Efecto que carga inversiones desde Supabase apenas el usuario está disponible
-  useEffect(() => {
-    if (!user?.id) return;
-
-    const fetchInvestments = async () => {
-      try {
-        const { data, error } = await supabase
-          .from('investments')
-          .select('*')
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false });
-
-        if (error) throw error;
-
-        const typeMap: Record<string, 'Cripto' | 'Acción' | 'CEDEAR'> = {
-          'cripto': 'Cripto',
-          'acción': 'Acción',
-          'accion': 'Acción',
-          'cedear': 'CEDEAR',
-        };
-
-        const investments: Investment[] = data.map((inv: any) => {
-          const normalizedType = inv.type ? inv.type.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
-          return {
-            id: inv.id,
-            ticker: inv.ticker,
-            name: inv.name,
-            type: typeMap[normalizedType] || inv.type || 'Cripto',
-            quantity: inv.quantity,
-            purchasePrice: inv.purchase_price,
-            purchaseDate: inv.purchase_date,
-            currency: inv.currency,
-            isFavorite: inv.is_favorite,
-          };
-        });
-
-        setInvestments(investments);
-        console.log('Inversiones cargadas desde Supabase (type normalizado):', investments);
-        setLoading(false);
-      } catch (err) {
-        console.error("Error fetching investments:", err);
-        setLoading(false);
-      }
-    };
-
-    fetchInvestments();
-  }, [user]);
-
-  // Crear un mapa para lookup rápido por tipo+ticker (mayúsculas)
-  const assetMap = React.useMemo(() => {
-    const map = new Map();
-    predefinedAssets.forEach(asset => {
-      map.set(asset.type + '-' + asset.ticker.toUpperCase(), asset);
-    });
-    return map;
-  }, [predefinedAssets]);
-
-  // Normaliza el tipo y quita tildes para evitar errores de mapeo
-  function normalizeType(type: string) {
-    return type.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  }
-
-  // 2. Efecto que enriquece con datos de predefinedAssets si están disponibles usando assetMap
-  useEffect(() => {
-    if (!predefinedAssets.length) return;
-
-    setInvestments((prev) =>
-      prev.map((inv) => {
-        const key = normalizeType(inv.type) + '-' + inv.ticker.toUpperCase();
-        const asset = assetMap.get(key);
-        return {
-          ...inv,
-          name: asset?.name || inv.name,
-          ticker: asset?.ticker || inv.ticker,
-        };
-      })
-    );
-  }, [predefinedAssets, assetMap]);
-  // Toggle favorite (actualiza frontend y Supabase)
-  const toggleFavorite = async (id: string) => {
-    setInvestments(prev =>
-      prev.map(inv =>
-        inv.id === id ? { ...inv, isFavorite: !inv.isFavorite } : inv
-      )
-    );
-
-    // También actualiza en Supabase
-    const updated = investments.find(inv => inv.id === id);
-    if (updated) {
-      const { error } = await supabase
-        .from('investments')
-        .update({ is_favorite: !updated.isFavorite })
-        .eq('id', id);
-      if (error) {
-        console.error('Error al actualizar favorito en Supabase:', error.message);
-      }
-    }
-  };
-
-  // Exportar inversiones como CSV
-  const exportToCSV = () => {
-    const headers = ['Ticker', 'Nombre', 'Tipo', 'Cantidad', 'PPC', 'Moneda', 'Fecha de compra'];
-    const rows = filteredInvestments
-      .slice()
-      .sort((a, b) => new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime())
-      .map(inv => {
-        const key = getNormalizedPpcKey(inv);
-        const ppc = ppcMap[key] ?? inv.purchasePrice;
-        return [
-          inv.ticker,
-          inv.name,
-          inv.type,
-          inv.quantity,
-          ppc,
-          inv.currency,
-          inv.purchaseDate
-        ];
-      });
-
-    const csvContent = [headers, ...rows]
-      .map(row => row.map(field => `"${String(field).replace(/"/g, '""')}"`).join(','))
-      .join('\n');
-
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', 'inversiones.csv');
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleAssetSelect = async (asset: PredefinedAsset) => {
-    setFetchingPrice(true);
-    setSelectedAsset(asset); // Asegura que el asset seleccionado esté disponible para el renderizado del modal
-    try {
-      let price = 0;
-      if (asset.type === 'Cripto' && asset.id) {
-        // Usar el id de CoinGecko, no el ticker
-        const res = await fetch(`https://api.coingecko.com/api/v3/simple/price?ids=${asset.id}&vs_currencies=usd`);
-        const data = await res.json();
-        price = data[asset.id]?.usd || 0;
-        // No multiplicar por CCL para Cripto
-      } else if (asset.type === 'Acción') {
-        const accionesRes = await fetch('https://api.cedears.ar/acciones');
-        const accionesData = await accionesRes.json();
-        const found = accionesData.find((a: any) => a.ticker === asset.ticker);
-        if (found && found.ars?.c) {
-          price = found.ars.c;
-        } else {
-          throw new Error('No se encontró precio para esta acción');
-        }
-      } else if (asset.type === 'CEDEAR') {
-        const cedearsRes = await fetch('https://api.cedears.ar/cedears');
-        const cedearsData = await cedearsRes.json();
-        const found = cedearsData.find((c: any) => c.ticker === asset.ticker);
-        if (found && found.ars?.c) {
-          price = found.ars.c;
-        } else {
-          throw new Error('No se encontró precio para este CEDEAR');
-        }
-      }
-
-      setCurrentPrice(price);
-      // --- Ajustar purchasePrice según currency ---
-      const currency = asset.type === 'Cripto' ? 'USD' : 'ARS';
-      const adjustedPrice =
-        asset.type === 'Cripto'
-          ? price
-          : currency === 'USD' && cclPrice
-          ? price / cclPrice
-          : price;
-      // Set all relevant fields at una sola vez, incluyendo purchasePrice
-      setNewInvestment(prev => ({
-        ...prev,
-        ticker: asset.ticker,
-        name: asset.name,
-        type: asset.type,
-        currency: currency,
-        purchasePrice: adjustedPrice,
-      }));
-    } catch (error) {
-      console.error('Error fetching price:', error);
-    } finally {
-      setFetchingPrice(false);
-    }
-  };
-
-  // Recalcular purchasePrice cuando cambia la moneda (lógica corregida para Cripto)
-  useEffect(() => {
-    if (!currentPrice || !selectedAsset) return;
-    let adjustedPrice = 0;
-    if (selectedAsset.type === 'Cripto') {
-      if (newInvestment.currency === 'ARS' && cclPrice) {
-        adjustedPrice = parseFloat((currentPrice * cclPrice).toFixed(2));
-      } else {
-        adjustedPrice = parseFloat(currentPrice.toFixed(2));
-      }
-    } else if (selectedAsset.type === 'Acción' || selectedAsset.type === 'CEDEAR') {
-      if (newInvestment.currency === 'ARS') {
-        adjustedPrice = parseFloat(currentPrice.toFixed(2));
-      } else if (newInvestment.currency === 'USD' && cclPrice) {
-        adjustedPrice = parseFloat((currentPrice / cclPrice).toFixed(2));
-      }
-    }
-    setNewInvestment(prev => ({ ...prev, purchasePrice: adjustedPrice }));
-    // eslint-disable-next-line
-  }, [newInvestment.currency, currentPrice, selectedAsset, cclPrice]);
-
-  const handleAddInvestment = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    setSuccess(null);
-
-    // Normalizar los valores de entrada para evitar comas como separador decimal o de miles
-    newInvestment.quantity = Number(newInvestment.quantity.toString().replace(/,/g, ''));
-    newInvestment.purchasePrice = Number(newInvestment.purchasePrice.toString().replace(/,/g, ''));
-
-    // Validate form
-    if (!newInvestment.ticker || !newInvestment.name || !newInvestment.quantity || !newInvestment.purchasePrice || !newInvestment.purchaseDate) {
-      setError('Por favor complete todos los campos');
-      return;
-    }
-
-    if (newInvestment.quantity <= 0) {
-      setError('La cantidad debe ser mayor a 0');
-      return;
-    }
-
-    if (newInvestment.purchasePrice <= 0) {
-      console.warn("Precio de compra inválido:", newInvestment.purchasePrice);
-      setError('El precio de compra debe ser mayor a 0');
-      return;
-    }
-
-    if (!user || !user.id) {
-      console.warn('Usuario no autenticado o user.id es null');
-      return;
-    }
-
-    // Debug: log intent to add investment
-    console.log("Intentando agregar inversión:", {
-      userId: user?.id,
-      ...newInvestment
-    });
-
-    // Convertir fecha al formato ISO (YYYY-MM-DD)
-    const formattedDate = new Date(newInvestment.purchaseDate).toISOString().split('T')[0];
-
-    try {
-      if (editId) {
-        const confirmEdit = window.confirm('✏️ ¿Estás seguro que deseas guardar los cambios?');
-        if (!confirmEdit) return;
-        // UPDATE si hay editId
-        const { error } = await supabase.from('investments')
-          .update({
-            ticker: newInvestment.ticker,
-            name: newInvestment.name,
-            type: newInvestment.type,
-            quantity: newInvestment.quantity,
-            purchase_price: newInvestment.purchasePrice,
-            purchase_date: formattedDate,
-            currency: newInvestment.currency,
-          })
-          .eq('id', editId)
-          .eq('user_id', user.id);
-        if (error) {
-          setError(error.message);
-          return;
-        }
-        setSuccess('Inversión actualizada');
-      } else {
-        // INSERT normal
-        const { data, error } = await supabase.from('investments').insert([
-          {
-            user_id: user.id,
-            ticker: newInvestment.ticker,
-            name: newInvestment.name,
-            type: newInvestment.type,
-            quantity: newInvestment.quantity,
-            purchase_price: newInvestment.purchasePrice,
-            purchase_date: formattedDate,
-            currency: newInvestment.currency,
-            is_favorite: false
-          }
-        ]);
-        console.log("Respuesta de Supabase:", { data, error });
-        if (error) {
-          console.error("Supabase insert error:", error);
-          setError(error.message);
-          return;
-        }
-        setSuccess('Inversión agregada');
-      }
-
-      // Reset form
-      setNewInvestment({
-        ticker: '',
-        name: '',
-        type: 'CEDEAR',
-        quantity: 0,
-        purchasePrice: 0,
-        purchaseDate: new Date().toISOString().split('T')[0],
-        currency: 'ARS',
-      });
-      setCurrentPrice(null);
-      setEditId(null);
-
-      // Refetch investments from Supabase
-      const fetchInvestments = async () => {
-        if (!user || !user.id) {
-          console.warn('Usuario no autenticado o user.id es null');
-          return;
-        }
-        try {
-          const { data, error } = await supabase
-              .from('investments')
-              .select('*')
-              .eq('user_id', user.id)
-              .order('created_at', { ascending: false });
-          if (error) throw error;
-          const typeMap: Record<string, 'Cripto' | 'Acción' | 'CEDEAR'> = {
-            'cripto': 'Cripto',
-            'acción': 'Acción',
-            'accion': 'Acción',
-            'cedear': 'CEDEAR',
-          };
-          const investments: Investment[] = data.map((inv: any) => {
-            const normalizedType = inv.type ? inv.type.toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase() : '';
-            return {
-              id: inv.id,
-              ticker: inv.ticker,
-              name: inv.name,
-              type: typeMap[normalizedType] || inv.type || 'Cripto',
-              quantity: inv.quantity,
-              purchasePrice: inv.purchase_price,
-              purchaseDate: inv.purchase_date,
-              currency: inv.currency,
-              isFavorite: inv.is_favorite,
-            };
-          });
-          setInvestments(investments);
-          console.log('Inversiones cargadas desde Supabase (type normalizado):', investments);
-        } catch (error) {
-          console.error('Error fetching investments after add:', error);
-        }
-      };
-      await fetchInvestments();
-
-      // Close modal after a short delay
-      setTimeout(() => {
-        setShowAddModal(false);
-        setSuccess(null);
-      }, 1500);
-
-    } catch (error) {
-      console.error('Error al agregar la inversión:', error);
-      setError('Error al agregar la inversión');
-    }
-  };
-
-  const filteredAssets = predefinedAssets.filter(
-      (asset) =>
-          asset.type === newInvestment.type &&
-          (asset.ticker.toLowerCase().includes(assetSearchTerm.toLowerCase()) ||
-              asset.name.toLowerCase().includes(assetSearchTerm.toLowerCase()))
+  const filteredAssets = (predefinedAssets ?? []).filter(
+    (asset) =>
+      assetSearchTerm.length === 0 ||
+      asset.ticker.toLowerCase().includes(assetSearchTerm.toLowerCase()) ||
+      asset.name.toLowerCase().includes(assetSearchTerm.toLowerCase())
   );
-  // Edit investment
-  const handleEditInvestment = (investment: Investment) => {
-    setEditId(investment.id);
-    setNewInvestment({
-      ticker: investment.ticker,
-      name: investment.name,
-      type: investment.type,
-      quantity: investment.quantity,
-      purchasePrice: investment.purchasePrice,
-      purchaseDate: investment.purchaseDate,
-      currency: investment.currency,
-    });
-    setShowAddModal(true);
-  };
-
-  // Delete investment
-  const handleDeleteInvestment = async (id: string) => {
-    const confirmDelete = window.confirm('🗑️ ¿Seguro que deseas eliminar esta inversión? Esta acción no se puede deshacer.');
-    if (!confirmDelete) return;
-
-    try {
-      const { error } = await supabase.from('investments').delete().eq('id', id);
-      if (error) {
-        alert('Error al eliminar la inversión: ' + error.message);
-        return;
-      }
-      setInvestments((prev) => prev.filter((inv) => inv.id !== id));
-    } catch (err) {
-      alert('Error al eliminar la inversión');
-      console.error(err);
-    }
-  };
 
 
   // Lógica corregida: conversión diferenciada para Cripto, Acción, CEDEAR y contexto ARS/USD
@@ -623,8 +158,30 @@ const Portfolio: React.FC = () => {
     return price;
   };
 
-  // Ordenar inversiones según sortBy (nueva lógica completa)
-  const filteredInvestments = investments
+  // Obtiene el PPC (purchase price) ajustado a la misma moneda/vista que el precio actual
+  const getAdjustedPpc = (inv: Investment): number => {
+    // PPC por unidad: usa promedio ponderado si merge está activo
+    const ppcKey = getNormalizedPpcKey(inv);
+    let ppcUnit = mergeTransactions
+      ? ppcMap[ppcKey] ?? inv.purchasePrice
+      : inv.purchasePrice;
+
+    if (inv.type === 'Cripto') {
+      if (showInARS && cclPrice) {
+        ppcUnit *= cclPrice;
+      }
+    } else if (inv.type === 'CEDEAR' || inv.type === 'Acción') {
+      if (inv.currency === 'USD' && showInARS && cclPrice) {
+        ppcUnit *= cclPrice;
+      } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
+        ppcUnit /= cclPrice;
+      }
+    }
+    return ppcUnit;
+  };
+
+  // Ordenar inversiones según sortBy (la lógica de orden se aplica después del merge)
+  const filteredInvestments = (investments ?? [])
     .filter(investment =>
       investment.ticker &&
       !isNaN(investment.purchasePrice) &&
@@ -633,72 +190,6 @@ const Portfolio: React.FC = () => {
       (investment.ticker.toLowerCase().includes(searchTerm.toLowerCase()) ||
         investment.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
-
-  filteredInvestments.sort((a, b) => {
-    // Favoritos primero
-    if ((b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0) !== 0)
-      return (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
-    // Nueva lógica de orden:
-    if (sortBy === 'tickerAZ') return a.ticker.localeCompare(b.ticker);
-    if (sortBy === 'tickerZA') return b.ticker.localeCompare(a.ticker);
-
-    if (sortBy === 'gananciaPorcentajeAsc') {
-      const retA = getAdjustedPrice(a) && a.purchasePrice ? calculateReturn(getAdjustedPrice(a), a.purchasePrice, a.currency, showInARS, cclPrice, a.type).percentage : 0;
-      const retB = getAdjustedPrice(b) && b.purchasePrice ? calculateReturn(getAdjustedPrice(b), b.purchasePrice, b.currency, showInARS, cclPrice, b.type).percentage : 0;
-      return retA - retB;
-    }
-    if (sortBy === 'gananciaPorcentajeDesc') {
-      const retA = getAdjustedPrice(a) && a.purchasePrice ? calculateReturn(getAdjustedPrice(a), a.purchasePrice, a.currency, showInARS, cclPrice, a.type).percentage : 0;
-      const retB = getAdjustedPrice(b) && b.purchasePrice ? calculateReturn(getAdjustedPrice(b), b.purchasePrice, b.currency, showInARS, cclPrice, b.type).percentage : 0;
-      return retB - retA;
-    }
-
-    if (sortBy === 'gananciaValorAsc') {
-      const priceA = getAdjustedPrice(a);
-      const priceB = getAdjustedPrice(b);
-      const retA = priceA && a.purchasePrice
-        ? calculateReturn(priceA, a.purchasePrice, a.currency, showInARS, cclPrice, a.type).amount
-        : 0;
-      const retB = priceB && b.purchasePrice
-        ? calculateReturn(priceB, b.purchasePrice, b.currency, showInARS, cclPrice, b.type).amount
-        : 0;
-      return retA - retB;
-    }
-    if (sortBy === 'gananciaValorDesc') {
-      const priceA = getAdjustedPrice(a);
-      const priceB = getAdjustedPrice(b);
-      const retA = priceA && a.purchasePrice
-        ? calculateReturn(priceA, a.purchasePrice, a.currency, showInARS, cclPrice, a.type).amount
-        : 0;
-      const retB = priceB && b.purchasePrice
-        ? calculateReturn(priceB, b.purchasePrice, b.currency, showInARS, cclPrice, b.type).amount
-        : 0;
-      return retB - retA;
-    }
-
-    if (sortBy === 'tenenciaAsc') {
-      const tenA = getAdjustedPrice(a) * a.quantity;
-      const tenB = getAdjustedPrice(b) * b.quantity;
-      return tenA - tenB;
-    }
-    if (sortBy === 'tenenciaDesc') {
-      const tenA = getAdjustedPrice(a) * a.quantity;
-      const tenB = getAdjustedPrice(b) * b.quantity;
-      return tenB - tenA;
-    }
-
-    if (sortBy === 'fechaAsc') {
-      const dateA = new Date(a.purchaseDate).getTime();
-      const dateB = new Date(b.purchaseDate).getTime();
-      return dateA - dateB;
-    }
-    if (sortBy === 'fechaDesc') {
-      const dateA = new Date(a.purchaseDate).getTime();
-      const dateB = new Date(b.purchaseDate).getTime();
-      return dateB - dateA;
-    }
-    return 0;
-  });
 
   // Agrupamiento de inversiones si mergeTransactions está activo
   const displayedInvestments = mergeTransactions
@@ -721,79 +212,10 @@ const Portfolio: React.FC = () => {
       )
     : filteredInvestments;
 
-
-  const formatCurrency = (value: number, currency: 'USD' | 'ARS' = 'ARS') => {
-    const formatter = new Intl.NumberFormat('es-AR', {
-      style: 'currency',
-      currency: currency,
-      minimumFractionDigits: currency === 'USD' ? 2 : 0,
-      maximumFractionDigits: currency === 'USD' ? 2 : 0,
-      notation: 'standard',
-      useGrouping: true
-    });
-    return formatter.format(value);
-  };
-
-  // Calcular totales en ARS y USD y visualización dinámica
-  const totalARS = displayedInvestments.reduce((acc, inv) => {
-    return acc + convertPrice(inv.currentPrice * inv.quantity, inv.currency, 'ARS', cclPrice);
-  }, 0);
-
-  const totalUSD = displayedInvestments
-      .filter((inv) => inv.currency === 'USD')
-      .reduce((acc, inv) => acc + inv.currentPrice * inv.quantity, 0);
-
-  // Totales para visualización según showInARS (corregido para convertir correctamente y evitar NaN)
-  const totalToShow = displayedInvestments.reduce((acc, inv) => {
-    const value = inv.currentPrice * inv.quantity;
-    return acc + convertPrice(value, inv.currency, showInARS ? 'ARS' : 'USD', cclPrice);
-  }, 0);
-  const totalCurrencyToShow = showInARS ? 'ARS' : 'USD';
-
-  useEffect(() => {
-    window.onerror = function (message, source, lineno, colno, error) {
-      console.error("Global Error:", { message, source, lineno, colno, error });
-    };
-  }, []);
-
-  useEffect(() => {
-    const fetchMarketPrices = async () => {
-      const prices: Record<string, number> = {};
-
-      // Criptos
-      const res = await fetch('https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd');
-      const data = await res.json();
-      data.forEach((coin: any) => {
-        prices['Cripto-' + coin.symbol.toUpperCase()] = coin.current_price;
-      });
-
-      // CEDEARs
-      const cedearRes = await fetch('https://api.cedears.ar/cedears');
-      const cedearData = await cedearRes.json();
-      cedearData.forEach((item: any) => {
-        prices['CEDEAR-' + item.ticker.toUpperCase()] = item.ars?.c ?? 0;
-      });
-
-      // Acciones
-      const accionesRes = await fetch('https://api.cedears.ar/acciones');
-      const accionesData = await accionesRes.json();
-      accionesData.forEach((item: any) => {
-        prices['Acción-' + item.ticker.toUpperCase()] = item.ars?.c ?? 0;
-      });
-
-      setMarketPrices(prices);
-    };
-    fetchMarketPrices();
-  }, []);
-
-  console.log("Portfolio renderizado");
-  if (!user) return <div>Usuario no autenticado</div>;
-
-  // Calcular PPC promedio ponderado por activo (ticker+tipo, usando ticker en mayúsculas)
+  // Calcular PPC promedio ponderado por activo
   const ppcMap: Record<string, number> = React.useMemo(() => {
     const map: Record<string, { totalQty: number; totalCost: number }> = {};
     investments.forEach(inv => {
-      // Normalizar type explícitamente para coincidir con los keys usados en el render
       const normalizedType = typeof inv.type === 'string'
         ? inv.type.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
         : inv.type;
@@ -810,11 +232,86 @@ const Portfolio: React.FC = () => {
     });
     return result;
   }, [investments]);
+  const getChangeAmt = (inv: Investment): number => {
+    const priceUnit = getAdjustedPrice(inv);
+    const ppcUnit   = getAdjustedPpc(inv);
+    return (priceUnit - ppcUnit) * inv.quantity;
+  };
+  // --- ORDEN FINAL ---
+  const sortedInvestments = [...displayedInvestments].sort((a, b) => {
+    // 1) Favoritos + fecha (por defecto)
+    if (sortBy === 'favoritosFechaDesc') {
+      const favDiff = (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
+      if (favDiff !== 0) return favDiff;
+      return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
+    }
+
+    // 2) Ticker
+    if (sortBy === 'tickerAZ') return a.ticker.localeCompare(b.ticker);
+    if (sortBy === 'tickerZA') return b.ticker.localeCompare(a.ticker);
+
+    // 3) Ganancia %
+    const getPct = (inv: Investment) => {
+      const pct = calculateReturn(
+        getAdjustedPrice(inv),
+        inv.purchasePrice,
+        inv.currency,
+        showInARS,
+        cclPrice,
+        inv.type
+      ).percentage;
+      return isNaN(pct) ? 0 : pct;
+    };
+    if (sortBy === 'gananciaPorcentajeAsc')  return getPct(a) - getPct(b);
+    if (sortBy === 'gananciaPorcentajeDesc') return getPct(b) - getPct(a);
+
+    // 4) Ganancia $
+    if (sortBy === 'gananciaValorAsc')  return getChangeAmt(a) - getChangeAmt(b);
+    if (sortBy === 'gananciaValorDesc') return getChangeAmt(b) - getChangeAmt(a);
+
+    // 5) Tenencia
+    const getTen = (inv: Investment) => getAdjustedPrice(inv) * inv.quantity;
+    if (sortBy === 'tenenciaAsc')  return getTen(a) - getTen(b);
+    if (sortBy === 'tenenciaDesc') return getTen(b) - getTen(a);
+
+    // 6) Fecha pura
+    const dateDiff = new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime();
+    if (sortBy === 'fechaAsc')  return dateDiff;
+    if (sortBy === 'fechaDesc') return -dateDiff;
+
+    return 0;
+  });
+
+
+  const formatCurrency = (value: number, currency: 'USD' | 'ARS' = 'ARS') => {
+    const formatter = new Intl.NumberFormat('es-AR', {
+      style: 'currency',
+      currency: currency,
+      minimumFractionDigits: currency === 'USD' ? 2 : 0,
+      maximumFractionDigits: currency === 'USD' ? 2 : 0,
+      notation: 'standard',
+      useGrouping: true
+    });
+    return formatter.format(value);
+  };
+
+  const totalCurrencyToShow = showInARS ? 'ARS' : 'USD';
+
+  useEffect(() => {
+    window.onerror = function (message, source, lineno, colno, error) {
+      console.error("Global Error:", { message, source, lineno, colno, error });
+    };
+  }, []);
+
+
+
+  // console.log("Portfolio renderizado");
+  if (loading) return <div className="text-center py-10">Cargando inversiones…</div>;
+  if (fetchError) return <div className="text-center py-10 text-red-500">Error al cargar inversiones: {fetchError}</div>;
 
   // Calcular total de tenencias para asignación usando la misma lógica y conversiones de priceUnit * quantity que se usa en cada fila
   const totalTenencia = displayedInvestments.reduce(
     (acc, inv) => {
-      // Usar la misma lógica que en cada fila para el cálculo de priceUnit
       const key = getAssetKey(inv);
       const ppcKey = getNormalizedPpcKey(inv);
       const currentPrice = marketPrices[key] ?? inv.purchasePrice;
@@ -841,7 +338,6 @@ const Portfolio: React.FC = () => {
           ppcUnit = ppcUnit / cclPrice;
         } else if (inv.currency === 'USD' && !showInARS && cclPrice) {
           priceUnit = currentPrice / cclPrice;
-          // ppcUnit ya está en USD
         }
       }
 
@@ -850,13 +346,11 @@ const Portfolio: React.FC = () => {
     0
   );
 
-  // --- RESUMEN GLOBAL PARA TARJETAS "Actual" y "Resultado" ---
   const resumenGlobal = displayedInvestments.reduce(
     (acc, inv) => {
       const key = getAssetKey(inv);
       const ppcKey = getNormalizedPpcKey(inv);
       const currentPrice = marketPrices[key] ?? inv.purchasePrice;
-      // Nueva lógica coherente con la vista de tabla
       let priceUnit = currentPrice;
       let ppcUnit = ppcMap[ppcKey] ?? inv.purchasePrice;
       if (inv.type === 'Cripto') {
@@ -894,7 +388,14 @@ const Portfolio: React.FC = () => {
     ? (resumenGlobal.cambioTotal / resumenGlobal.invertido) * 100
     : 0;
 
+
   return (
+    <>
+      {typeof success === 'string' && (
+        <div className="fixed bottom-6 right-6 bg-green-100 text-green-800 px-4 py-2 rounded-lg shadow-md border border-green-200 transition-opacity z-50">
+          ✅ {success}
+        </div>
+      )}
       <div className="space-y-6">
         {/* Export CSV, Add Investment, and View in USD buttons grouped */}
         <motion.div
@@ -909,7 +410,7 @@ const Portfolio: React.FC = () => {
           </div>
           <div className="flex gap-3 flex-wrap justify-end items-center">
             <button
-              onClick={exportToCSV}
+              onClick={() => exportToCSV()}
               className="px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors bg-pink-600 text-white hover:bg-pink-700"
               title="Descargar CSV"
             >
@@ -970,10 +471,7 @@ const Portfolio: React.FC = () => {
             <h3>Invertido</h3>
             <p className="text-xl font-bold mt-1">
               {formatCurrency(
-                displayedInvestments.reduce((acc, i) => {
-                  const val = i.purchasePrice * i.quantity;
-                  return acc + convertPrice(val, i.currency, totalCurrencyToShow, cclPrice);
-                }, 0),
+                resumenGlobal.invertido,
                 totalCurrencyToShow
               )}
             </p>
@@ -1014,12 +512,7 @@ const Portfolio: React.FC = () => {
             <h3>Valor Total del Portafolio</h3>
             <p className="text-xl font-bold mt-1 text-current">
               {formatCurrency(
-                investments.reduce((acc, i) => {
-                  const key = i.ticker + '-' + i.type;
-                  const currentPrice = marketPrices[key] ?? i.purchasePrice;
-                  const val = currentPrice * i.quantity;
-                  return acc + convertPrice(val, i.currency, showInARS ? 'ARS' : 'USD', cclPrice);
-                }, 0),
+                resumenGlobal.valorActual,
                 showInARS ? 'ARS' : 'USD'
               )}
             </p>
@@ -1086,7 +579,6 @@ const Portfolio: React.FC = () => {
                 </button>
               ))}
             </div>
-            {/* Switch mergeTransactions: arriba a la derecha, alineado con filtros y buscador */}
             <div className="flex items-center">
               <button
                 type="button"
@@ -1121,6 +613,7 @@ const Portfolio: React.FC = () => {
                   value={sortBy}
                   onChange={e =>
                     setSortBy(e.target.value as
+                      'favoritosFechaDesc' |
                       'tickerAZ' | 'tickerZA' |
                       'gananciaPorcentajeAsc' | 'gananciaPorcentajeDesc' |
                       'gananciaValorAsc' | 'gananciaValorDesc' |
@@ -1130,6 +623,7 @@ const Portfolio: React.FC = () => {
                   }
                   className="w-full max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
+                  <option value="favoritosFechaDesc">Favoritos</option>
                   <option value="tickerAZ">Ticker A-Z</option>
                   <option value="tickerZA">Ticker Z-A</option>
                   <option value="gananciaPorcentajeAsc">Ganancia % ↑</option>
@@ -1160,8 +654,8 @@ const Portfolio: React.FC = () => {
                       <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">❤️</th>
                     )}
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600">Ticker</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Nombre</th>
-                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Precio Acual</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center max-w-[5rem]">Nombre</th>
+                    <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Precio Actual</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio $</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cambio %</th>
                     <th className="pb-3 px-4 text-sm font-semibold text-gray-600 text-center">Cantidad</th>
@@ -1177,7 +671,7 @@ const Portfolio: React.FC = () => {
                   </tr>
                   </thead>
                   <tbody>
-                  {displayedInvestments.map((investment) => {
+                  {sortedInvestments.map((investment) => {
                     const key = getAssetKey(investment);
                     const ppcKey = getNormalizedPpcKey(investment);
                     // Usar siempre el precio de mercado más reciente si está disponible, luego purchasePrice
@@ -1188,7 +682,6 @@ const Portfolio: React.FC = () => {
                       if (investment.currency === 'USD' && !showInARS) {
                         currentPrice = currentPrice / cclPrice;
                       }
-                      // Si la vista es en ARS, no tocar (ya está en ARS)
                     }
 
                     // --- NUEVA LÓGICA: el PPC usado depende de mergeTransactions ---
@@ -1273,7 +766,7 @@ const Portfolio: React.FC = () => {
                             </div>
                           </td>
                           {/* Nombre */}
-                          <td className="py-4 px-4 text-gray-600">{investment.name}</td>
+                          <td className="py-4 px-4 text-gray-600 max-w-[10rem] truncate">{investment.name}</td>
                           {/* Precio actual */}
                           <td className="py-4 px-4 text-gray-600">
                             {
@@ -1333,7 +826,7 @@ const Portfolio: React.FC = () => {
                           {!mergeTransactions && (
                             <td className="py-4 px-4 text-gray-600 text-center">
                               {investment.purchaseDate
-                                  ? new Date(investment.purchaseDate).toLocaleDateString('es-AR')
+                                  ? investment.purchaseDate.split('-').reverse().join('/')
                                   : 'Fecha no disponible'}
                             </td>
                           )}
@@ -1363,14 +856,50 @@ const Portfolio: React.FC = () => {
                           {!mergeTransactions && (
                             <td className="py-4 px-4 flex gap-4 justify-center">
                               <button
-                                  onClick={() => handleEditInvestment(investment)}
+                                  onClick={() => {
+                                    setEditId(investment.id);
+                                    setNewInvestment({
+                                      ticker: investment.ticker,
+                                      name: investment.name,
+                                      type: investment.type,
+                                      quantity: investment.quantity,
+                                      purchasePrice: investment.purchasePrice,
+                                      purchaseDate: investment.purchaseDate,
+                                      currency: investment.currency,
+                                      allocation: investment.allocation ?? 0,
+                                    });
+
+                                    // Pre‑seleccionar el activo para que se vea en el modal
+                                    const assetMatch = predefinedAssets.find(
+                                      (a) => a.ticker === investment.ticker && a.type === investment.type
+                                    );
+                                    if (assetMatch) {
+                                      setSelectedAsset(assetMatch as any);
+                                      // Mostrar también el precio actual si lo tenemos
+                                      const key = assetMatch.ticker + '-' + assetMatch.type;
+                                      _setCurrentPrice(marketPrices[key] ?? investment.purchasePrice);
+                                    } else {
+                                      setSelectedAsset(null);
+                                      _setCurrentPrice(null);
+                                    }
+
+                                    setAssetSearchTerm('');
+                                    setShowAddModal(true);
+                                  }}
                                   className="text-yellow-500 hover:text-yellow-600 transition-colors"
                                   title="Editar esta inversión"
                               >
                                 <Edit2 size={18} />
                               </button>
                               <button
-                                  onClick={() => handleDeleteInvestment(investment.id)}
+                                  onClick={async () => {
+                                    const confirmDelete = window.confirm('🗑️ ¿Seguro que deseas eliminar esta inversión? Esta acción no se puede deshacer.');
+                                    if (confirmDelete) {
+                                      await deleteInvestment(investment.id);
+                                      setSuccess('Inversión eliminada');
+                                      setTimeout(() => setSuccess(null), 2500);
+                                    }
+                                  }}
                                   className="text-red-500 hover:text-red-600 transition-colors"
                                   title="Eliminar esta inversión"
                               >
@@ -1427,12 +956,13 @@ const Portfolio: React.FC = () => {
                           type: 'CEDEAR',
                           quantity: 0,
                           purchasePrice: 0,
-                          purchaseDate: new Date().toISOString().split('T')[0],
+                          purchaseDate: new Date().toLocaleDateString('sv-SE'),
                           currency: 'ARS',
+                          allocation: 0,
                         });
-                        setSelectedAsset(null);
-                        setCurrentPrice(null);
                         setAssetSearchTerm('');
+                        setSelectedAsset(null);
+                        _setCurrentPrice(null);
                       }}
                       className="text-gray-500 hover:text-gray-700 transition-colors"
                   >
@@ -1440,51 +970,32 @@ const Portfolio: React.FC = () => {
                   </button>
                 </div>
 
-                {error && (
-                    <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700">
-                      <AlertCircle size={18} className="mr-2 flex-shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                )}
 
-                {success && (
-                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-lg flex items-center text-green-700">
-                      <Check size={18} className="mr-2 flex-shrink-0" />
-                      <span>{success}</span>
-                    </div>
-                )}
-
-                <form onSubmit={handleAddInvestment} className="space-y-4">
+                <form
+                  onSubmit={async e => {
+                    e.preventDefault();
+                    let successMessage = '';
+                    if (editId) {
+                      const { allocation, purchaseDate, purchasePrice, ...rest } = newInvestment;
+                      await updateInvestment(editId, {
+                        ...rest,
+                        allocation,
+                        purchaseDate,
+                        purchasePrice
+                      });
+                      successMessage = 'Inversión actualizada';
+                    } else {
+                      await addInvestment(newInvestment);
+                      successMessage = 'Inversión agregada';
+                    }
+                    setSuccess(successMessage);
+                    setTimeout(() => setSuccess(null), 2500);
+                    setShowAddModal(false);
+                    setEditId(null);
+                  }}
+                  className="space-y-4"
+                >
                   {/* Tipo de inversión */}
-                  <div>
-                    <label htmlFor="type" className="block text-sm font-medium text-gray-800 mb-1">
-                      Tipo de inversión
-                    </label>
-                    <select
-                        id="type"
-                        value={newInvestment.type}
-                        onChange={(e) => {
-                          const newType = e.target.value as 'Cripto' | 'CEDEAR' | 'Acción';
-                          setNewInvestment((prev) => ({
-                            ...prev,
-                            type: newType,
-                            ticker: '',
-                            name: '',
-                            quantity: 0,
-                            purchasePrice: 0,
-                            currency: newType === 'Cripto' ? 'USD' : 'ARS',
-                          }));
-                          setAssetSearchTerm('');
-                          setSelectedAsset(null);
-                          setCurrentPrice(null);
-                        }}
-                        className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 shadow-sm"
-                    >
-                      <option value="CEDEAR">CEDEAR</option>
-                      <option value="Acción">Acción</option>
-                      <option value="Cripto">Cripto</option>
-                    </select>
-                  </div>
                   {/* --- Asset Selection: búsqueda e íconos --- */}
                   <div className="mb-4">
                     <label htmlFor="assetSearch" className="block text-sm font-medium text-gray-800 mb-1">
@@ -1511,7 +1022,12 @@ const Portfolio: React.FC = () => {
                             <li
                               key={asset.ticker}
                               onClick={() => {
-                                handleAssetSelect(asset);
+                                handleAssetSelect(asset as any, setNewInvestment, _setCurrentPrice);
+                                setNewInvestment(prev => ({
+                                  ...prev,
+                                  type: asset.type as 'Cripto' | 'Acción' | 'CEDEAR',
+                                  currency: asset.type === 'Cripto' ? 'USD' : 'ARS',
+                                }));
                                 setSelectedAsset(asset);
                                 setAssetSearchTerm('');
                               }}
@@ -1532,7 +1048,6 @@ const Portfolio: React.FC = () => {
                         </ul>
                       )}
                     </div>
-                    {/* Mostrar el activo seleccionado debajo del input */}
                     {selectedAsset && (
                       <div className="flex items-center gap-3 mt-3 p-2 bg-gray-50 border border-gray-200 rounded-lg">
                         <img
@@ -1541,15 +1056,28 @@ const Portfolio: React.FC = () => {
                           className="w-7 h-7 rounded-full object-contain"
                           style={{ minWidth: 28, minHeight: 28, maxWidth: 28, maxHeight: 28 }}
                         />
-                        <div>
+                        <div className="flex-1">
                           <div className="font-semibold text-gray-800">{selectedAsset.name}</div>
                           <div className="text-xs text-gray-500">{selectedAsset.ticker}</div>
                         </div>
+                        <span
+                          className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            selectedAsset.type === 'Cripto'
+                              ? 'bg-orange-100 text-orange-700'
+                              : selectedAsset.type === 'Acción'
+                              ? 'bg-sky-100 text-sky-700'
+                              : 'bg-purple-100 text-purple-700'
+                          }`}
+                        >
+                          {selectedAsset.type === 'Cripto'
+                            ? 'Criptomoneda'
+                            : selectedAsset.type === 'Acción'
+                            ? 'Acción'
+                            : 'CEDEAR'}
+                        </span>
                       </div>
                     )}
                   </div>
-
-                  {/* Fecha de compra */}
 
                   <div className="mb-4">
                     <label htmlFor="purchaseDate" className="block text-sm font-medium text-gray-800 mb-1">
@@ -1647,12 +1175,6 @@ const Portfolio: React.FC = () => {
                             min="0"
                         />
                       </div>
-                      {fetchingPrice && (
-                          <p className="mt-1 text-sm text-gray-500 flex items-center">
-                            <Loader size={12} className="animate-spin mr-1" />
-                            Obteniendo precio actual...
-                          </p>
-                      )}
                     </div>
                   </div>
 
@@ -1662,6 +1184,19 @@ const Portfolio: React.FC = () => {
                         onClick={() => {
                           setShowAddModal(false);
                           setEditId(null);
+                          setNewInvestment({
+                            ticker: '',
+                            name: '',
+                            type: 'CEDEAR',
+                            quantity: 0,
+                            purchasePrice: 0,
+                            purchaseDate: new Date().toLocaleDateString('sv-SE'),
+                            currency: 'ARS',
+                            allocation: 0,
+                          });
+                          setAssetSearchTerm('');
+                          setSelectedAsset(null);
+                          _setCurrentPrice(null);
                         }}
                         className="px-4 py-2 bg-gray-100 hover:bg-gray-200 text-gray-800 font-medium rounded-lg transition-colors"
                     >
@@ -1680,21 +1215,10 @@ const Portfolio: React.FC = () => {
             </motion.div>
         )}
       </div>
+    </>
   );
 };
 
 
-// Función para obtener la clave de asset (market price, etc)
-const getAssetKey = (inv: Investment) => {
-  return inv.type + '-' + inv.ticker.toUpperCase();
-};
-
-// Función para obtener la clave normalizada para PPC
-const getNormalizedPpcKey = (inv: Investment) => {
-  const normalizedType = typeof inv.type === 'string'
-    ? inv.type.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-    : inv.type;
-  return inv.ticker.toUpperCase() + '-' + normalizedType;
-};
 
 export default Portfolio;

@@ -32,7 +32,7 @@ interface Props {
 }
 
 const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
-  const [section, setSection] = useState<"plazos" | "billeteras" | "cripto">("plazos");
+  const [section, setSection] = useState<"plazos" | "billeteras" | "cripto">(activeSection);
   const [sortOption, setSortOption] = useState<'alphabetical' | 'apyDesc' | 'apyAsc'>('alphabetical');
   const [billeteras, setBilleteras] = useState<Billetera[]>([]);
   const [plazosFijos, setPlazosFijos] = useState<PlazoFijo[]>([]);
