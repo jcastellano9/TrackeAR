@@ -1,8 +1,9 @@
 // Herramientas para simular inversiones y cuotas
 
 import React, { useState, useEffect } from 'react';
+import { Combobox } from '@headlessui/react';
 import { motion } from 'framer-motion';
-import { Calculator, Landmark, Wallet, Bitcoin, AlertCircle, Check } from 'lucide-react';
+import { Calculator, Landmark, Wallet, Bitcoin, AlertCircle, Check, ChevronDown } from 'lucide-react';
 import axios from 'axios';
 
 interface Rate {
@@ -39,6 +40,11 @@ const Simulator: React.FC = () => {
   // Crypto selection states
   const [selectedCrypto, setSelectedCrypto] = useState('');
   const [availableCryptoPlatforms, setAvailableCryptoPlatforms] = useState<Rate[]>([]);
+
+  // Search query state for Comboboxes
+  const [bankQuery, setBankQuery] = useState('');
+  const [walletQuery, setWalletQuery] = useState('');
+  const [cryptoQuery, setCryptoQuery] = useState('');
 
   // Results state
   const [result, setResult] = useState<SimulationResult | null>(null);
@@ -740,8 +746,6 @@ const Simulator: React.FC = () => {
                     ? 'bg-orange-600 hover:bg-orange-700'
                     : simulationType === 'wallet'
                     ? 'bg-purple-600 hover:bg-purple-700'
-                    : simulationType === 'installments'
-                    ? 'bg-red-600 hover:bg-red-700'
                     : 'bg-blue-600 hover:bg-blue-700'
                 } text-white rounded-lg transition-colors flex items-center justify-center`}
               >
@@ -763,101 +767,95 @@ const Simulator: React.FC = () => {
               {simulationType !== 'crypto' && (
                 <div className="space-y-3">
                   <h4 className="font-medium text-gray-700 dark:text-gray-200 mb-1">Tasas disponibles</h4>
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <div className="space-y-2 max-h-60 overflow-visible">
                     {simulationType === 'fixed' && (
                       <>
-                        <label htmlFor="bankRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Seleccionar banco</label>
-                        <select
-                          id="bankRateSelect"
-                          value={selectedEntity}
-                          onChange={(e) => {
-                            const selected = bankRates.find(rate => rate.entity === e.target.value);
-                            if (selected) handleEntitySelect(selected.entity, selected.rate);
-                          }}
-                          className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                        >
-                          <option value="" disabled>Elegí un banco</option>
-                          {bankRates.map((rate, index) => (
-                            <option key={index} value={rate.entity}>
-                              {rate.entity} ({rate.rate.toFixed(2)}% TNA)
-                            </option>
-                          ))}
-                        </select>
+                        <label htmlFor="bankRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Buscar banco</label>
+                        <Combobox value={selectedEntity} onChange={(value) => {
+                          const sel = bankRates.find(r => r.entity === value);
+                          if (sel) handleEntitySelect(sel.entity, sel.rate);
+                        }}>
+                          <div className="relative">
+                            <Combobox.Input
+                              className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                              placeholder="Escribe para buscar..."
+                              onChange={(e) => setBankQuery(e.target.value)}
+                            />
+                            <Combobox.Button className="absolute inset-y-0 right-2 flex items-center">
+                              <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                            </Combobox.Button>
+                            <Combobox.Options className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg max-h-60 overflow-y-auto shadow-lg">
+                              {bankRates
+                                .sort((a, b) => b.rate - a.rate)
+                                .filter(r => r.entity.toLowerCase().includes(bankQuery.toLowerCase()))
+                                .map((rate) => (
+                                  <Combobox.Option
+                                    key={rate.entity}
+                                    value={rate.entity}
+                                    className={({ active }) =>
+                                      `cursor-pointer select-none p-2 ${active ? 'bg-blue-100 dark:bg-blue-900/30' : ''}`
+                                    }
+                                  >
+                                    {rate.entity} ({rate.rate.toFixed(2)}% TNA)
+                                  </Combobox.Option>
+                              ))}
+                            </Combobox.Options>
+                          </div>
+                        </Combobox>
                         {selectedEntity && (
                           <div className="flex items-center mt-3 space-x-2">
-                            {(() => {
-                              const r = (simulationType === 'fixed'
-                                ? bankRates
-                                : simulationType === 'wallet'
-                                ? walletRates
-                                : cryptoRates
-                              ).find(r => r.entity === selectedEntity);
-                              return (
-                                <img
-                                  src={
-                                    (simulationType === 'fixed'
-                                      ? bankRates
-                                      : simulationType === 'wallet'
-                                      ? walletRates
-                                      : cryptoRates
-                                    ).find(r => r.entity === selectedEntity)?.logo || undefined
-                                  }
-                                  alt={selectedEntity}
-                                  className="w-6 h-6 object-contain"
-                                  style={{ display: r?.logo ? 'block' : 'none' }}
-                                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                                />
-                              );
-                            })()}
+                            <img
+                              src={bankRates.find(r => r.entity === selectedEntity)?.logo}
+                              alt={selectedEntity}
+                              className="w-6 h-6 object-contain"
+                              onError={(e) => (e.currentTarget.style.display = 'none')}
+                            />
                           </div>
                         )}
                       </>
                     )}
                     {simulationType === 'wallet' && (
                       <>
-                        <label htmlFor="walletRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Seleccionar billetera virtual</label>
-                        <select
-                          id="walletRateSelect"
-                          value={selectedEntity}
-                          onChange={(e) => {
-                            const selected = walletRates.find(rate => rate.entity === e.target.value);
-                            if (selected) handleEntitySelect(selected.entity, selected.rate);
-                          }}
-                          className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500 transition-colors"
-                        >
-                          <option value="" disabled>Elegí una billetera</option>
-                          {walletRates.map((rate, index) => (
-                            <option key={index} value={rate.entity}>
-                              {rate.entity} ({rate.rate.toFixed(2)}% TNA)
-                            </option>
-                          ))}
-                        </select>
+                        <label htmlFor="walletRateSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">Buscar billetera virtual</label>
+                        <Combobox value={selectedEntity} onChange={(value) => {
+                          const sel = walletRates.find(r => r.entity === value);
+                          if (sel) handleEntitySelect(sel.entity, sel.rate);
+                        }}>
+                          <div className="relative">
+                            <Combobox.Input
+                              className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                              placeholder="Escribe para buscar..."
+                              onChange={(e) => setWalletQuery(e.target.value)}
+                            />
+                            <Combobox.Button className="absolute inset-y-0 right-2 flex items-center">
+                              <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                            </Combobox.Button>
+                            <Combobox.Options className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg max-h-60 overflow-y-auto shadow-lg">
+                              {walletRates
+                                .sort((a, b) => b.rate - a.rate)
+                                .filter(r => r.entity.toLowerCase().includes(walletQuery.toLowerCase()))
+                                .map((rate) => (
+                                  <Combobox.Option
+                                    key={rate.entity}
+                                    value={rate.entity}
+                                    className={({ active }) =>
+                                      `cursor-pointer select-none p-2 ${active ? 'bg-purple-100 dark:bg-purple-900/30' : ''}`
+                                    }
+                                  >
+                                    {rate.entity} ({rate.rate.toFixed(2)}% TNA)
+                                  </Combobox.Option>
+                              ))}
+                            </Combobox.Options>
+                          </div>
+                        </Combobox>
                         {selectedEntity && (
                           <div className="flex items-center mt-3 space-x-2">
-                            {(() => {
-                              const r = (simulationType === 'fixed'
-                                ? bankRates
-                                : simulationType === 'wallet'
-                                ? walletRates
-                                : cryptoRates
-                              ).find(r => r.entity === selectedEntity);
-                              return (
-                                <img
-                                  src={
-                                    (simulationType === 'fixed'
-                                      ? bankRates
-                                      : simulationType === 'wallet'
-                                      ? walletRates
-                                      : cryptoRates
-                                    ).find(r => r.entity === selectedEntity)?.logo || undefined
-                                  }
-                                  alt={selectedEntity}
-                                  className="w-6 h-6 object-contain"
-                                  style={{ display: r?.logo ? 'block' : 'none' }}
-                                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                                />
-                              );
-                            })()}
+                            <img
+                              src={walletRates.find(r => r.entity === selectedEntity)?.logo}
+                              alt={selectedEntity}
+                              className="w-6 h-6 object-contain"
+                              onError={(e) => (e.currentTarget.style.display = 'none')}
+                            />
                           </div>
                         )}
                       </>
@@ -896,20 +894,12 @@ const Simulator: React.FC = () => {
                   </select>
                   {selectedCrypto && (
                     <div className="flex items-center space-x-2">
-                      {(() => {
-                        const r = cryptoRates.find(r => r.entity.startsWith(selectedCrypto));
-                        return (
-                          <img
-                            src={
-                              cryptoRates.find(r => r.entity.startsWith(selectedCrypto))?.logo || undefined
-                            }
-                            alt={selectedCrypto}
-                            className="w-6 h-6 object-contain"
-                            style={{ display: r?.logo ? 'block' : 'none' }}
-                            onError={(e) => (e.currentTarget.style.display = 'none')}
-                          />
-                        );
-                      })()}
+                      <img
+                        src={cryptoRates.find(r => r.entity.startsWith(selectedCrypto))?.logo}
+                        alt={selectedCrypto}
+                        className="w-6 h-6 object-contain"
+                        onError={(e) => (e.currentTarget.style.display = 'none')}
+                      />
                     </div>
                   )}
                   {selectedCrypto && (
@@ -917,38 +907,52 @@ const Simulator: React.FC = () => {
                       <label htmlFor="platformSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                         Seleccionar plataforma
                       </label>
-                      <select
-                        id="platformSelect"
-                        value={selectedEntity}
-                        onChange={(e) => {
-                          const selected = availableCryptoPlatforms.find(rate => rate.entity === e.target.value);
-                          if (selected) handleEntitySelect(selected.entity, selected.rate);
-                        }}
-                        className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-green-500 focus:border-green-500 transition-colors mb-1"
-                      >
-                        <option value="" disabled>Elegí una plataforma</option>
-                        {availableCryptoPlatforms.map((rate, index) => (
-                          <option key={index} value={rate.entity}>
-                            {rate.entity.split('(')[1]?.replace(')', '')} ({rate.rate.toFixed(2)}% APY)
-                          </option>
-                        ))}
-                      </select>
+                      <Combobox value={selectedEntity} onChange={(value) => {
+                        const sel = availableCryptoPlatforms.find(r => r.entity === value);
+                        if (sel) handleEntitySelect(sel.entity, sel.rate);
+                      }}>
+                        <div className="relative">
+                          <Combobox.Input
+                            className="w-full p-2.5 border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 rounded-lg shadow-sm focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
+                            placeholder="Escribe para buscar..."
+                            onChange={(e) => setCryptoQuery(e.target.value)}
+                          />
+                          <Combobox.Button className="absolute inset-y-0 right-2 flex items-center">
+                            <ChevronDown className="w-5 h-5 text-gray-400 dark:text-gray-500" />
+                          </Combobox.Button>
+                          <Combobox.Options className="absolute z-10 mt-1 w-full bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-lg max-h-60 overflow-y-auto shadow-lg">
+                            {availableCryptoPlatforms
+                              .sort((a, b) => b.rate - a.rate)
+                              .filter(r => {
+                                // Search on platform name inside parentheses or full entity
+                                const match = r.entity.split('(')[1]?.replace(')', '').toLowerCase() || '';
+                                return (
+                                  r.entity.toLowerCase().includes(cryptoQuery.toLowerCase()) ||
+                                  match.includes(cryptoQuery.toLowerCase())
+                                );
+                              })
+                              .map((rate) => (
+                                <Combobox.Option
+                                  key={rate.entity}
+                                  value={rate.entity}
+                                  className={({ active }) =>
+                                    `cursor-pointer select-none p-2 ${active ? 'bg-orange-100 dark:bg-orange-900/30' : ''}`
+                                  }
+                                >
+                                  {rate.entity.split('(')[1]?.replace(')', '') || rate.entity} ({rate.rate.toFixed(2)}% APY)
+                                </Combobox.Option>
+                            ))}
+                          </Combobox.Options>
+                        </div>
+                      </Combobox>
                       {selectedEntity && (
                         <div className="flex items-center space-x-2">
-                          {(() => {
-                            const r = cryptoRates.find(r => r.entity === selectedEntity);
-                            return (
-                              <img
-                                src={
-                                  cryptoRates.find(r => r.entity === selectedEntity)?.logo || undefined
-                                }
-                                alt={selectedEntity}
-                                className="w-6 h-6 object-contain"
-                                style={{ display: r?.logo ? 'block' : 'none' }}
-                                onError={(e) => (e.currentTarget.style.display = 'none')}
-                              />
-                            );
-                          })()}
+                          <img
+                            src={cryptoRates.find(r => r.entity === selectedEntity)?.logo}
+                            alt={selectedEntity}
+                            className="w-6 h-6 object-contain"
+                            onError={(e) => (e.currentTarget.style.display = 'none')}
+                          />
                           {selectedEntity && !selectedEntity.includes('(') && (
                             <span className="text-sm text-gray-700 dark:text-gray-100 truncate">{selectedEntity}</span>
                           )}
@@ -994,8 +998,6 @@ const Simulator: React.FC = () => {
                           ? 'text-orange-500'
                           : simulationType === 'wallet'
                           ? 'text-purple-600'
-                          : simulationType === 'installments'
-                          ? 'text-red-600'
                           : 'text-blue-600'
                       }`}>
                         {result.effectiveRate.toFixed(2)}%
