@@ -1,4 +1,14 @@
 import React, { useState, useEffect } from 'react';
+// Emoji icons for quotes
+const dollarEmoji: Record<string, string> = {
+  'USD Oficial': '💵',
+  'USD Blue': '🔵',
+  'USD Bolsa': '💹',
+  'USD CCL': '📈',
+  'USD Mayorista': '🏦',
+  'USD Tarjeta': '💳',
+  'USD Cripto': '🪙',
+};
 import YieldAnalysis from './YieldAnalysis';
 import { motion } from 'framer-motion';
 import {
@@ -467,7 +477,7 @@ const Analysis: React.FC = () => {
         onClick={() => setActiveQuoteSection('dollar')}
         className={`flex items-center px-4 py-1.5 rounded-lg transition-colors ${
           activeQuoteSection === 'dollar'
-            ? 'bg-green-600 text-white'
+            ? 'bg-green-500 dark:bg-green-700 text-white'
             : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'
         }`}
       >
@@ -529,6 +539,7 @@ const Analysis: React.FC = () => {
             )}
             <div>
               <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                {quote.name.startsWith('USD') ? (dollarEmoji[quote.name] || '') : ''}{' '}
                 {quote.name.split('—')[0].trim()}
               </h3>
             </div>
@@ -820,7 +831,7 @@ return (
                     return (
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         {bestQuote && (
-                          <div className="rounded-xl shadow-sm p-6 border border-teal-200 bg-teal-100 dark:border-teal-700 dark:bg-teal-800 text-teal-800 dark:text-teal-200">
+                          <div className="rounded-xl shadow-sm p-6 border border-teal-100 bg-teal-50 dark:border-teal-700 dark:bg-teal-800 text-teal-700 dark:text-teal-200">
                             <p className="text-base">
                               <strong>Mejor App:</strong> {bestQuote.name.split('—')[0].trim()} – <strong>
                                 {selectedPixSymbol === 'USD' && bestQuote.buy
@@ -832,7 +843,7 @@ return (
                           </div>
                         )}
                         {tarjetaMepQuote && (
-                          <div className="rounded-xl shadow-sm p-6 border border-teal-200 bg-teal-100 dark:border-teal-700 dark:bg-teal-800 text-teal-800 dark:text-teal-200">
+                          <div className="rounded-xl shadow-sm p-6 border border-teal-100 bg-teal-50 dark:border-teal-700 dark:bg-teal-800 text-teal-700 dark:text-teal-200">
                             <p className="text-base">
                               <strong>Tarjeta + MEP:</strong> <strong>
                                 {selectedPixSymbol === 'USD' && tarjetaMepQuote.buy
@@ -844,7 +855,7 @@ return (
                           </div>
                         )}
                         {tarjetaQuote && (
-                          <div className="rounded-xl shadow-sm p-6 border border-teal-200 bg-teal-100 dark:border-teal-700 dark:bg-teal-800 text-teal-800 dark:text-teal-200">
+                          <div className="rounded-xl shadow-sm p-6 border border-teal-100 bg-teal-50 dark:border-teal-700 dark:bg-teal-800 text-teal-700 dark:text-teal-200">
                             <p className="text-base">
                               <strong>Dólar Tarjeta:</strong> <strong>
                                 {selectedPixSymbol === 'USD' && tarjetaQuote.buy

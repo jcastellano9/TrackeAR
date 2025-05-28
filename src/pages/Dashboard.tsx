@@ -48,12 +48,39 @@ interface CryptoQuote {
   variation: number;
 }
 
+// Emoji icons for quotes
+const dollarEmoji: Record<string, string> = {
+  Oficial: '💵',
+  Blue: '🔵',
+  Bolsa: '💹',
+  CCL: '📈',
+  Mayorista: '🏦',
+  Cripto: '🪙',
+  Tarjeta: '💳',
+};
+const cryptoEmoji: Record<string, string> = {
+  USDT: '🟢',
+  USDC: '🔵',
+  BTC: '🟠',
+  ETH: '🟣',
+  Inflación: '📊',
+};
+
 const Dashboard: React.FC = () => {
   const supabase = useSupabase();
   const { user } = useAuth();
 
   // Estado para alternar entre ARS y USD
   const [showInARS, setShowInARS] = useState(true);
+  // Estado para dark mode
+  const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDarkMode(document.documentElement.classList.contains('dark'));
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
+    return () => observer.disconnect();
+  }, []);
   // Filter by asset type for both summary and charts
   const [typeFilter, setTypeFilter] = useState<'Todos' | 'Cripto' | 'CEDEAR' | 'Acción'>('Todos');
 
@@ -134,11 +161,13 @@ const Dashboard: React.FC = () => {
 
   // Portfolio distribution recalculated per type using filtered current values
   const distributionData = React.useMemo(() => {
-    // Always these three labels
-    const labels = ['Cripto', 'CEDEAR', 'Acción'] as const;
+    // Always these three labels (renamed)
+    const labels = ['Criptomonedas', 'CEDEARs', 'Acciones'] as const;
 
     // Calculate current value per asset type using the hook’s filtered summary
-    const values = labels.map(type => {
+    // Map new labels to typeFilter values
+    const typeKeys: ('Cripto' | 'CEDEAR' | 'Acción')[] = ['Cripto', 'CEDEAR', 'Acción'];
+    const values = typeKeys.map(type => {
       const r = getResumenDashboardFiltrado({
         typeFilter: type,
         merge: true,
@@ -163,7 +192,7 @@ const Dashboard: React.FC = () => {
   }, [getResumenDashboardFiltrado, showInARS]);
 
   // Temporal filter state for capital evolution chart
-  const [selectedRange, setSelectedRange] = useState('1Y');
+  const [selectedRange, setSelectedRange] = useState<'All' | '1M' | '3M' | '6M' | 'YTD' | '1Y'>('All');
 
   // --- Capital evolution chart using real data from hook ---
   const [capitalData, setCapitalData] = useState<{ labels: string[]; datasets: any[] }>({
@@ -174,16 +203,44 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     // Obtener la evolución real del capital (array de { fecha, Cripto, CEDEAR, Accion, total })
     const dataRaw = getCapitalEvolutionData({ showInARS }) || [];
-    if (!Array.isArray(dataRaw) || dataRaw.length === 0) {
+    // Filtrar según el rango de tiempo seleccionado
+    let filteredDataRaw;
+    if (selectedRange === 'All') {
+      filteredDataRaw = dataRaw;
+    } else {
+      const now = new Date();
+      const threshold = new Date(now);
+      switch (selectedRange) {
+        case '1M':
+          threshold.setMonth(now.getMonth() - 1);
+          break;
+        case '3M':
+          threshold.setMonth(now.getMonth() - 3);
+          break;
+        case '6M':
+          threshold.setMonth(now.getMonth() - 6);
+          break;
+        case 'YTD':
+          threshold.setFullYear(now.getFullYear(), 0, 1);
+          break;
+        case '1Y':
+          threshold.setFullYear(now.getFullYear() - 1);
+          break;
+        default:
+          break;
+      }
+      filteredDataRaw = dataRaw.filter(item => new Date(item.fecha) >= threshold);
+    }
+    if (!Array.isArray(filteredDataRaw) || filteredDataRaw.length === 0) {
       setCapitalData({ labels: [], datasets: [] });
       return;
     }
     // Extraer labels y series tal cual vienen del hook, sin ninguna conversión
-    const labels = dataRaw.map(item => item.fecha);
-    const seriesCripto = dataRaw.map(item => item.Cripto);
-    const seriesCedear = dataRaw.map(item => item.CEDEAR);
+    const labels = filteredDataRaw.map(item => item.fecha);
+    const seriesCripto = filteredDataRaw.map(item => item.Cripto);
+    const seriesCedear = filteredDataRaw.map(item => item.CEDEAR);
     // Usar 'Acción' como clave
-    const seriesAccion = dataRaw.map(item => item['Acción'] ?? item.Accion);
+    const seriesAccion = filteredDataRaw.map(item => item['Acción'] ?? item.Accion);
     // --- Adjustment logic for ARS/USD view ---
     const cclRate = cclPrice ?? 1;
     let seriesCriptoAdjusted = seriesCripto;
@@ -241,8 +298,8 @@ const Dashboard: React.FC = () => {
           label: 'Total',
           data: seriesTotal,
           fill: false,
-          borderColor: '#1E293B',
-          backgroundColor: 'rgba(30,41,59,0.1)',
+          borderColor: isDarkMode ? '#FFFFFF' : '#1E293B',
+          backgroundColor: isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(30,41,59,0.1)',
           borderWidth: 2,
           pointRadius: 2,
           tension: 0.3,
@@ -275,6 +332,8 @@ const Dashboard: React.FC = () => {
     marketPrices,
     cclPrice,
     typeFilter,
+    selectedRange,
+    isDarkMode,
   ]);
 
 
@@ -287,12 +346,16 @@ const Dashboard: React.FC = () => {
         // Fetch dollar quotes - unificado
         try {
           const response = await axios.get('https://dolarapi.com/v1/ambito/dolares');
-          const quotes: DollarQuote[] = response.data.map((item: any) => ({
-            name: item.nombre,
-            buy: item.compra,
-            sell: item.venta,
-            variation: item.variacion ?? null
-          }));
+          const quotes: DollarQuote[] = response.data.map((item: any) => {
+            const rawName = item.nombre;
+            const name = rawName === 'Contado con liquidación' ? 'CCL' : rawName;
+            return {
+              name,
+              buy: item.compra,
+              sell: item.venta,
+              variation: item.variacion ?? null
+            };
+          });
           setDollarQuotes(quotes);
         } catch (err) {
           console.error('Error al obtener cotizaciones del dólar:', err);
@@ -303,13 +366,11 @@ const Dashboard: React.FC = () => {
         try {
           const res = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=ars,usd&include_24hr_change=true');
           const data = res.data;
-          // Usar CCL real desde hook
-          const cclRate = cclPrice ?? 1;
           const formattedCryptoQuotes: CryptoQuote[] = [
             { name: 'USDT', price: data['tether'].ars, variation: data['tether'].ars_24h_change },
             { name: 'USDC', price: data['usd-coin'].ars, variation: data['usd-coin'].ars_24h_change },
-            { name: 'BTC', price: data['bitcoin'].ars / cclRate, variation: data['bitcoin'].ars_24h_change },
-            { name: 'ETH', price: data['ethereum'].ars / cclRate, variation: data['ethereum'].ars_24h_change }
+            { name: 'BTC', price: data['bitcoin'].usd, variation: data['bitcoin'].usd_24h_change },
+            { name: 'ETH', price: data['ethereum'].usd, variation: data['ethereum'].usd_24h_change }
           ];
           setCryptoQuotes(formattedCryptoQuotes);
         } catch (error) {
@@ -424,17 +485,6 @@ const Dashboard: React.FC = () => {
       >
         <div className="flex items-center">
           <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h1>
-          <button
-            onClick={() => setShowInARS(prev => !prev)}
-            className={`ml-4 px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
-              showInARS
-                ? 'bg-green-600 text-white hover:bg-green-700'
-                : 'bg-[#0EA5E9] text-white hover:bg-[#0284c7]'
-            }`}
-          >
-            <DollarSign size={16} className="text-white" />
-            Ver en {showInARS ? 'USD' : 'ARS'}
-          </button>
         </div>
         <p className="text-gray-600 dark:text-gray-300">Bienvenido a tu panel financiero</p>
       </motion.div>
@@ -590,10 +640,10 @@ const Dashboard: React.FC = () => {
           <div className="mb-4 flex flex-wrap justify-between items-center gap-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Evolución del Capital</h2>
             <div className="flex gap-2 text-sm">
-              {['1W','1M','3M','6M','YTD','1Y'].map(label => (
+              {['All','1M','3M','6M','YTD','1Y'].map(label => (
                 <button
                   key={label}
-                  onClick={() => setSelectedRange(label)}
+                  onClick={() => setSelectedRange(label as 'All' | '1M' | '3M' | '6M' | 'YTD' | '1Y')}
                   className={`px-3 py-1 rounded border ${
                     selectedRange === label
                       ? 'bg-gray-200 dark:bg-gray-700 text-gray-900 dark:text-white font-semibold'
@@ -610,34 +660,40 @@ const Dashboard: React.FC = () => {
           </div>
           {/* Below the line chart: interactive legend buttons */}
           <div className="mt-4 flex items-center justify-center gap-4 text-sm">
-            {['Cripto','CEDEAR','Acción','Todos'].map(label => (
-              <button
-                key={label}
-                onClick={() => setTypeFilter(label as 'Todos'|'Cripto'|'CEDEAR'|'Acción')}
-                className={`
-                  px-2 py-1 rounded text-sm transition
-                  ${
-                    typeFilter === label
-                      ? label === 'Cripto'
-                        ? 'bg-orange-100 text-orange-600 font-semibold'
+            {['Todos','Acción','CEDEAR','Cripto'].map(label => {
+              let display = label === 'Acción' ? 'Acciones'
+                          : label === 'CEDEAR' ? 'CEDEARs'
+                          : label === 'Cripto' ? 'Criptomonedas'
+                          : 'Todos';
+              return (
+                <button
+                  key={label}
+                  onClick={() => setTypeFilter(label as 'Todos'|'Cripto'|'CEDEAR'|'Acción')}
+                  className={`
+                    px-2 py-1 rounded text-sm transition
+                    ${
+                      typeFilter === label
+                        ? label === 'Cripto'
+                          ? 'bg-orange-100 text-orange-600 font-semibold'
+                          : label === 'CEDEAR'
+                          ? 'bg-purple-100 text-purple-600 font-semibold'
+                          : label === 'Acción'
+                          ? 'bg-sky-100 text-sky-600 font-semibold'
+                          : 'bg-gray-200 text-gray-900 font-semibold'
+                        : label === 'Cripto'
+                        ? 'text-orange-600 hover:bg-orange-50'
                         : label === 'CEDEAR'
-                        ? 'bg-purple-100 text-purple-600 font-semibold'
+                        ? 'text-purple-600 hover:bg-purple-50'
                         : label === 'Acción'
-                        ? 'bg-sky-100 text-sky-600 font-semibold'
-                        : 'bg-gray-200 text-gray-900 font-semibold'
-                      : label === 'Cripto'
-                      ? 'text-orange-600 hover:bg-orange-50'
-                      : label === 'CEDEAR'
-                      ? 'text-purple-600 hover:bg-purple-50'
-                      : label === 'Acción'
-                      ? 'text-sky-600 hover:bg-sky-50'
-                      : 'text-gray-600 hover:bg-gray-100'
-                  }
-                `}
-              >
-                {label}
-              </button>
-            ))}
+                        ? 'text-sky-600 hover:bg-sky-50'
+                        : 'text-gray-600 hover:bg-gray-100'
+                    }
+                  `}
+                >
+                  {display}
+                </button>
+              );
+            })}
           </div>
         </motion.div>
 
@@ -648,10 +704,23 @@ const Dashboard: React.FC = () => {
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4, delay: 0.1 }}
         >
-          <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Distribución del Portfolio</h2>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Distribución del Portfolio</h2>
+            <button
+              onClick={() => setShowInARS(prev => !prev)}
+              className={`px-3 py-1 rounded-lg text-sm flex items-center gap-1 transition-colors ${
+                showInARS
+                  ? 'bg-green-600 text-white hover:bg-green-700'
+                  : 'bg-[#0EA5E9] text-white hover:bg-[#0284c7]'
+              }`}
+            >
+              <DollarSign size={14} className="text-white" />
+              Ver en {showInARS ? 'USD' : 'ARS'}
+            </button>
+          </div>
           <div className="flex flex-col items-center justify-center h-full py-6">
-            <div className="w-full">
-              <div className="h-64">
+            <div className="w-full flex justify-center">
+              <div className="h-64 w-64">
                 <Doughnut data={distributionData} options={doughnutOptions} />
               </div>
             </div>
@@ -681,7 +750,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Market Data */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-6">
         {/* Dollar Quotes */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
@@ -706,37 +775,24 @@ const Dashboard: React.FC = () => {
             </div>
           ) : dollarQuotes.length > 0 ? (
             <>
-              <div className="space-y-3">
+              <div className="grid grid-cols-7 gap-3 justify-center">
                 {dollarQuotes.map((quote, index) => (
-                  <div key={index} className="grid grid-cols-12 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    <div className="col-span-4 flex items-center">
-                      <p className="font-medium text-gray-800 dark:text-gray-100">{quote.name}</p>
-                    </div>
-                    <div className="col-span-5 flex flex-wrap justify-end items-center gap-x-4 text-right">
-                      <span className="flex items-center">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Compra:</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.buy)}</span>
-                      </span>
-                      <span className="flex items-center">
-                        <span className="text-xs text-gray-500 dark:text-gray-400 mr-1">Venta:</span>
-                        <span className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.sell)}</span>
-                      </span>
-                    </div>
-                    <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
-                      {quote.variation !== undefined && quote.variation !== null ? (
-                        <>
-                          <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
-                          </span>
-                          {quote.variation >= 0 ? (
-                            <ArrowUpRight size={12} className="ml-1 text-green-600" />
-                          ) : (
-                            <ArrowDownRight size={12} className="ml-1 text-red-600" />
-                          )}
-                        </>
-                      ) : (
-                        <span className="text-xs text-gray-400">–</span>
-                      )}
+                  <div
+                    key={index}
+                    className="w-full bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2"
+                  >
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-center">
+                      {dollarEmoji[quote.name] || ''} {quote.name}
+                    </h3>
+                    <div className="grid grid-cols-2 gap-4 justify-items-center">
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">Venta</div>
+                        <div className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.sell)}</div>
+                      </div>
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">Compra</div>
+                        <div className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.buy)}</div>
+                      </div>
                     </div>
                   </div>
                 ))}
@@ -772,61 +828,55 @@ const Dashboard: React.FC = () => {
               <p className="text-gray-500 dark:text-gray-400">Cargando datos...</p>
             </div>
           ) : cryptoQuotes.length > 0 ? (
-            <>
-              <div className="space-y-3">
-                {cryptoQuotes
-                  .filter(quote => quote && typeof quote.price === 'number' && !isNaN(quote.price) && quote.price > 0)
-                  .map((quote, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      {/* Nombre */}
-                      <div className="col-span-4 flex flex-col justify-center">
-                        <p className="font-medium text-gray-800 dark:text-gray-100">{quote.name}</p>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
-                          {['USDT', 'USDC'].includes(quote.name) ? 'Stablecoin' : 'Cryptocurrency'}
-                        </p>
+            <div className="grid grid-cols-5 gap-3 justify-center">
+              {cryptoQuotes
+                .filter(quote => typeof quote.price === 'number' && quote.price > 0)
+                .map((quote, index) => (
+                  <div
+                    key={index}
+                    className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2"
+                  >
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-center">
+                      {cryptoEmoji[quote.name] || ''} {quote.name}
+                    </h3>
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 text-center">
+                      {['USDT','USDC'].includes(quote.name) ? 'Stablecoin' : 'Cryptocurrency'}
+                    </div>
+                    <div className="grid grid-cols-2 gap-4 justify-items-center">
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">
+                          {['BTC','ETH'].includes(quote.name) ? 'Precio (USD)' : 'Precio (ARS)'}
+                        </div>
+                        <div className="font-medium text-gray-800 dark:text-gray-100 text-center">
+                          {['BTC','ETH'].includes(quote.name) ? formatUSD(quote.price) : formatARS(quote.price)}
+                        </div>
                       </div>
-                      {/* Precio */}
-                      <div className="col-span-5 flex items-center justify-end text-right">
-                        <p className="font-medium text-gray-800 dark:text-gray-100">
-                          {['BTC', 'ETH'].includes(quote.name) ? formatUSD(quote.price) : formatARS(quote.price)}
-                        </p>
-                      </div>
-                      {/* Variación */}
-                      <div className="col-span-3 flex items-center sm:justify-end mt-2 sm:mt-0">
-                        <span className={`text-xs ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                      <div>
+                        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">Variación 24h</div>
+                        <div className={`text-sm font-medium text-center ${quote.variation >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {quote.variation >= 0 ? '+' : ''}{quote.variation.toFixed(2)}%
-                        </span>
-                        {quote.variation >= 0 ? (
-                          <ArrowUpRight size={12} className="ml-1 text-green-600" />
-                        ) : (
-                          <ArrowDownRight size={12} className="ml-1 text-red-600" />
-                        )}
+                        </div>
                       </div>
                     </div>
-                  ))}
-              </div>
-              {/* Inflación mensual oficial - tarjeta separada y visualmente destacada */}
-              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-4 mt-6 border-l-4 border-orange-400">
-                <div className="flex justify-between items-center">
-                  <div className="flex flex-col justify-center">
-                    <p className="text-base font-medium text-gray-800 dark:text-gray-100">Inflación mensual oficial</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">Fuente: INDEC</p>
-                    <p className="text-xs text-gray-500 dark:text-gray-400">
-                      {lastInflationDate ? `Última actualización: ${lastInflationDate}` : null}
-                    </p>
                   </div>
-                  <div className="text-right">
-                    {inflationError ? (
-                        <p className="text-base text-red-500">Datos no disponibles</p>
-                    ) : lastInflation !== null ? (
-                        <p className="text-2xl font-bold text-gray-800 dark:text-gray-100">{lastInflation.toFixed(2)}%</p>
-                    ) : (
-                        <p className="text-sm text-gray-500 dark:text-gray-400">Cargando...</p>
-                    )}
-                  </div>
-                </div>
+                ))}
+              {/* Inflación mensual simplificada y centrada */}
+              <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 space-y-2 border-l-4 border-orange-400 text-center">
+                <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">
+                  {cryptoEmoji['Inflación']} Inflación mensual
+                </h3>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Fuente: INDEC</p>
+                {inflationError ? (
+                  <p className="text-base text-red-500">Datos no disponibles</p>
+                ) : lastInflation !== null ? (
+                  <p className="text-xl font-bold text-gray-800 dark:text-gray-100">
+                    {lastInflation.toFixed(2)}%
+                  </p>
+                ) : (
+                  <p className="text-sm text-gray-500 dark:text-gray-400">Cargando...</p>
+                )}
               </div>
-            </>
+            </div>
           ) : (
             <div className="text-center py-10">
               <p className="text-gray-500 dark:text-gray-400">No hay datos disponibles</p>
