@@ -45,7 +45,9 @@ const Portfolio: React.FC = () => {
     handleAssetSelect, // 👈 agregar esto
     success,           // ✅ Add this
     setSuccess,        // ✅ And this
-    exportToCSV        // ← add this line
+    exportToCSV,        // ← add this line
+    getResumenGlobalFiltrado, // <-- import from usePortfolioData
+    ppcMap              // <-- get ppcMap from the hook
   } = usePortfolioData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
@@ -212,26 +214,6 @@ const Portfolio: React.FC = () => {
       )
     : filteredInvestments;
 
-  // Calcular PPC promedio ponderado por activo
-  const ppcMap: Record<string, number> = React.useMemo(() => {
-    const map: Record<string, { totalQty: number; totalCost: number }> = {};
-    investments.forEach(inv => {
-      const normalizedType = typeof inv.type === 'string'
-        ? inv.type.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
-        : inv.type;
-      const key = inv.ticker.toUpperCase() + '-' + normalizedType;
-      if (!map[key]) {
-        map[key] = { totalQty: 0, totalCost: 0 };
-      }
-      map[key].totalQty += inv.quantity;
-      map[key].totalCost += inv.purchasePrice * inv.quantity;
-    });
-    const result: Record<string, number> = {};
-    Object.keys(map).forEach(key => {
-      result[key] = map[key].totalQty > 0 ? map[key].totalCost / map[key].totalQty : 0;
-    });
-    return result;
-  }, [investments]);
   const getChangeAmt = (inv: Investment): number => {
     const priceUnit = getAdjustedPrice(inv);
     const ppcUnit   = getAdjustedPpc(inv);
@@ -346,44 +328,15 @@ const Portfolio: React.FC = () => {
     0
   );
 
-  const resumenGlobal = displayedInvestments.reduce(
-    (acc, inv) => {
-      const key = getAssetKey(inv);
-      const ppcKey = getNormalizedPpcKey(inv);
-      const currentPrice = marketPrices[key] ?? inv.purchasePrice;
-      let priceUnit = currentPrice;
-      let ppcUnit = ppcMap[ppcKey] ?? inv.purchasePrice;
-      if (inv.type === 'Cripto') {
-        if (showInARS && cclPrice) {
-          priceUnit *= cclPrice;
-          ppcUnit *= cclPrice;
-        }
-      } else if (inv.type === 'Acción' || inv.type === 'CEDEAR') {
-        if (inv.currency === 'USD' && showInARS && cclPrice) {
-          ppcUnit *= cclPrice;
-          // priceUnit ya está en ARS
-        } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
-          priceUnit /= cclPrice;
-          ppcUnit /= cclPrice;
-        } else if (inv.currency === 'USD' && !showInARS && cclPrice) {
-          // currentPrice viene en ARS, necesito convertirlo a USD
-          priceUnit /= cclPrice;
-          // ppcUnit ya está en USD
-        }
-      }
-      const differencePerUnit = priceUnit - ppcUnit;
-      const valorActual = priceUnit * inv.quantity;
-      const cambioAbsoluto = differencePerUnit * inv.quantity;
-      // Usar ppcUnit * inv.quantity para el invertido, así todo queda en la moneda visualizada
-      return {
-        valorActual: acc.valorActual + valorActual,
-        cambioTotal: acc.cambioTotal + cambioAbsoluto,
-        invertido: acc.invertido + ppcUnit * inv.quantity
-      };
-    },
-    { valorActual: 0, cambioTotal: 0, invertido: 0 }
-  );
-
+  // Usar getResumenGlobalFiltrado para obtener el resumen global y resultadoPorcentaje
+  const resumenGlobal = getResumenGlobalFiltrado({
+    inversiones: displayedInvestments,
+    ppcMap,
+    marketPrices,
+    mergeTransactions,
+    showInARS,
+    cclPrice
+  });
   const resultadoPorcentaje = resumenGlobal.invertido > 0
     ? (resumenGlobal.cambioTotal / resumenGlobal.invertido) * 100
     : 0;

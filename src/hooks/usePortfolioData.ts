@@ -16,6 +16,8 @@ interface Investment {
   isFavorite?: boolean;
 }
 
+
+
 interface PredefinedAsset {
   ticker: string;
   name: string;
@@ -26,6 +28,10 @@ interface PredefinedAsset {
 }
 
 export function usePortfolioData() {
+  // Chequea si el precio es un número válido y en un rango razonable
+  function isValidPrice(price: number) {
+    return typeof price === "number" && isFinite(price) && price > 0 && price < 10000000;
+  }
   const supabase = useSupabase();
   const { user } = useAuth();
   const [investments, setInvestments] = useState<Investment[]>([]);
@@ -170,7 +176,7 @@ export function usePortfolioData() {
         // Market prices lookup
         const prices: Record<string, number> = {};
         [...formattedAssets, ...cedears, ...acciones].forEach(a => {
-          prices[a.type + '-' + a.ticker] = a.price;
+          prices[a.type + '-' + a.ticker] = isValidPrice(a.price) ? a.price : undefined;
         });
         setMarketPrices(prices);
       } catch (error) {
@@ -449,41 +455,43 @@ export function usePortfolioData() {
     document.body.removeChild(link);
   }
 
-  // --- RESUMEN GLOBAL TOTAL (sin filtrar: todos los activos, siempre en ARS) ---
   const resumenGlobalTotal = useMemo(() => {
-    return investments.reduce(
-      (acc, inv) => {
-        const key = inv.type + '-' + inv.ticker.toUpperCase();
-        const currentPrice = marketPrices[key] ?? inv.purchasePrice;
-
-        // Convertimos todo a ARS
-        let priceARS = currentPrice;
-        let ppcARS   = inv.purchasePrice;
-
-        if (inv.type === 'Cripto') {
-          // Los precios de criptos vienen en USD → pasamos a ARS si tenemos CCL
-          if (cclPrice) {
-            priceARS = currentPrice * cclPrice;
-            ppcARS   = inv.purchasePrice * cclPrice;
-          }
-        } else {
-          // Acciones / CEDEAR: si la moneda registrada es USD, convertir
-          if (inv.currency === 'USD' && cclPrice) {
-            priceARS = currentPrice * cclPrice;
-            ppcARS   = inv.purchasePrice * cclPrice;
-          }
+    let totalARS = { valorActual: 0, invertido: 0, cambioTotal: 0 };
+    investments.forEach(inv => {
+      const key = inv.type + '-' + inv.ticker.toUpperCase();
+      const currentPrice = isValidPrice(marketPrices[key]) ? marketPrices[key] : inv.purchasePrice;
+      let priceARS = currentPrice;
+      let ppcARS = inv.purchasePrice;
+      if (inv.type === 'Cripto') {
+        if (cclPrice) {
+          priceARS = currentPrice * cclPrice;
+          ppcARS = inv.purchasePrice * cclPrice;
         }
+      } else {
+        if (inv.currency === 'USD' && cclPrice) {
+          priceARS = currentPrice * cclPrice;
+          ppcARS = inv.purchasePrice * cclPrice;
+        }
+      }
+      const diff = priceARS - ppcARS;
+      totalARS = {
+        valorActual: totalARS.valorActual + priceARS * inv.quantity,
+        invertido: totalARS.invertido + ppcARS * inv.quantity,
+        cambioTotal: totalARS.cambioTotal + diff * inv.quantity,
+      };
+    });
 
-        const diff = priceARS - ppcARS;
+    // --- NUEVO: convertir todo a USD si hay CCL ---
+    const toUSD = (ars: number) => cclPrice ? ars / cclPrice : ars;
 
-        return {
-          valorActual: acc.valorActual + priceARS * inv.quantity,
-          invertido:   acc.invertido   + ppcARS   * inv.quantity,
-          cambioTotal: acc.cambioTotal + diff      * inv.quantity,
-        };
-      },
-      { valorActual: 0, invertido: 0, cambioTotal: 0 }
-    );
+    return {
+      ...totalARS,
+      valorActualUSD: toUSD(totalARS.valorActual),
+      invertidoUSD: toUSD(totalARS.invertido),
+      cambioTotalUSD: toUSD(totalARS.cambioTotal),
+      porcentajeTotal: totalARS.invertido > 0 ? (totalARS.cambioTotal / totalARS.invertido) * 100 : 0,
+      porcentajeTotalUSD: totalARS.invertido > 0 ? (totalARS.cambioTotal / totalARS.invertido) * 100 : 0,
+    };
   }, [investments, marketPrices, cclPrice]);
 
   // --- RESUMEN POR TIPO (sin filtrar: total por Cripto, CEDEAR y Acción en ARS) ---
@@ -495,7 +503,7 @@ export function usePortfolioData() {
     };
     investments.forEach(inv => {
       const key = inv.type + '-' + inv.ticker.toUpperCase();
-      const currentPrice = marketPrices[key] ?? inv.purchasePrice;
+      const currentPrice = isValidPrice(marketPrices[key]) ? marketPrices[key] : inv.purchasePrice;
       // Convertir todo a ARS usando la misma lógica que en resumenGlobalTotal
       let priceARS = currentPrice;
       if (inv.type === 'Cripto') {
@@ -507,6 +515,248 @@ export function usePortfolioData() {
     });
     return totals;
   }, [investments, marketPrices, cclPrice]);
+  // --- PROMEDIO PONDERADO DE PRECIO DE COMPRA (PPC) POR ACTIVO ---
+  /**
+   * Calcula el PPC promedio ponderado (en la moneda original de compra) de cada activo
+   * Retorna un objeto ppcMap: key = TICKER-tipo normalizado, value = ppc ponderado
+   */
+  const ppcMap: Record<string, number> = useMemo(() => {
+    const map: Record<string, { totalQty: number; totalCost: number }> = {};
+    investments.forEach(inv => {
+      const normalizedType = typeof inv.type === 'string'
+        ? inv.type.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+        : inv.type;
+      const key = inv.ticker.toUpperCase() + '-' + normalizedType;
+      if (!map[key]) {
+        map[key] = { totalQty: 0, totalCost: 0 };
+      }
+      map[key].totalQty += inv.quantity;
+      map[key].totalCost += inv.purchasePrice * inv.quantity;
+    });
+    const result: Record<string, number> = {};
+    Object.keys(map).forEach(key => {
+      result[key] = map[key].totalQty > 0 ? map[key].totalCost / map[key].totalQty : 0;
+    });
+    return result;
+  }, [investments]);
+
+  // --- RESUMEN GLOBAL FILTRADO ---
+  /**
+   * Calcula el resumen global (valorActual, invertido, cambioTotal) sobre un array de inversiones filtradas y agrupadas,
+   * usando el mapa de PPC, precios de mercado, flags de merge y ARS/USD, y precio CCL.
+   */
+  function getResumenGlobalFiltrado({
+    inversiones,
+    ppcMap,
+    marketPrices,
+    mergeTransactions,
+    showInARS,
+    cclPrice,
+  }: {
+    inversiones: Investment[],
+    ppcMap: Record<string, number>,
+    marketPrices: Record<string, number>,
+    mergeTransactions: boolean,
+    showInARS: boolean,
+    cclPrice: number | null,
+  }) {
+    return inversiones.reduce(
+      (acc, inv) => {
+        const key = inv.type + '-' + inv.ticker.toUpperCase();
+        const ppcKey = inv.ticker.toUpperCase() + '-' + (
+          typeof inv.type === 'string'
+            ? inv.type.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+            : inv.type
+        );
+        const currentPrice = isValidPrice(marketPrices[key]) ? marketPrices[key] : inv.purchasePrice;
+        const isMerged = mergeTransactions;
+        const priceOfPurchase = isMerged
+          ? ppcMap[ppcKey] ?? inv.purchasePrice
+          : inv.purchasePrice;
+        let priceUnit = currentPrice;
+        let ppcUnit = priceOfPurchase;
+        if (inv.type === 'Cripto') {
+          if (showInARS && cclPrice) {
+            priceUnit = currentPrice * cclPrice;
+            ppcUnit = ppcUnit * cclPrice;
+          }
+        } else if (inv.type === 'Acción' || inv.type === 'CEDEAR') {
+          if (inv.currency === 'USD' && showInARS && cclPrice) {
+            ppcUnit = ppcUnit * cclPrice;
+          } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
+            priceUnit = priceUnit / cclPrice;
+            ppcUnit = ppcUnit / cclPrice;
+          } else if (inv.currency === 'USD' && !showInARS && cclPrice) {
+            priceUnit = priceUnit / cclPrice;
+          }
+        }
+        const differencePerUnit = priceUnit - ppcUnit;
+        const valorActual = priceUnit * inv.quantity;
+        const cambioAbsoluto = differencePerUnit * inv.quantity;
+        return {
+          valorActual: acc.valorActual + valorActual,
+          cambioTotal: acc.cambioTotal + cambioAbsoluto,
+          invertido: acc.invertido + ppcUnit * inv.quantity,
+        };
+      },
+      { valorActual: 0, cambioTotal: 0, invertido: 0 }
+    );
+  }
+
+  /**
+   * Devuelve las inversiones filtradas por tipo y búsqueda, y agrupadas por ticker-tipo si merge está activo.
+   * @param params
+   *  - typeFilter: 'Todos' | 'CEDEAR' | 'Cripto' | 'Acción'
+   *  - merge: boolean
+   *  - search: string
+   */
+  function getDisplayedInvestments({
+                                     typeFilter = 'Todos',
+                                     merge = true,
+                                     search = ''
+                                   }: {
+    typeFilter: 'Todos' | 'CEDEAR' | 'Cripto' | 'Acción',
+    merge: boolean,
+    search: string
+  }) {
+    // Filtro por tipo y búsqueda
+    const filtered = investments.filter(inv =>
+        inv.ticker &&
+        !isNaN(inv.purchasePrice) &&
+        !isNaN(inv.quantity) &&
+        (typeFilter === 'Todos' || inv.type === typeFilter) &&
+        (
+            inv.ticker.toLowerCase().includes(search.toLowerCase()) ||
+            inv.name.toLowerCase().includes(search.toLowerCase())
+        )
+    );
+
+    // Agrupamiento si merge está activo
+    if (merge) {
+      return Object.values(
+          filtered.reduce((acc, inv) => {
+            const key = `${inv.ticker}-${inv.type}`;
+            if (!acc[key]) {
+              acc[key] = { ...inv };
+            } else {
+              const prevQty = acc[key].quantity;
+              const newQty = prevQty + inv.quantity;
+              acc[key].purchasePrice =
+                  (acc[key].purchasePrice * prevQty + inv.purchasePrice * inv.quantity) / newQty;
+              acc[key].quantity = newQty;
+              acc[key].allocation = (acc[key].allocation ?? 0) + (inv.allocation ?? 0);
+            }
+            return acc;
+          }, {} as Record<string, Investment>)
+      );
+    } else {
+      return filtered;
+    }
+  }
+
+  /**
+   * Devuelve los totales filtrados y mergeados, para el dashboard o resumen filtrado:
+   * - valorActual: suma del valor actual de los activos filtrados
+   * - invertido: suma invertida original
+   * - cambioTotal: ganancia/pérdida absoluta
+   * - resultadoPorcentaje: ganancia/pérdida %
+   * - totalInversiones: cantidad (mergeada o no)
+   */
+  function getResumenDashboardFiltrado({
+                                         typeFilter = 'Todos',
+                                         merge = true,
+                                         search = '',
+                                         showInARS = true,
+                                       }: {
+    typeFilter?: 'Todos' | 'CEDEAR' | 'Cripto' | 'Acción',
+    merge?: boolean,
+    search?: string,
+    showInARS?: boolean,
+  }) {
+    // Obtiene inversiones filtradas y agrupadas según los parámetros
+    const inversiones = getDisplayedInvestments({ typeFilter, merge, search });
+
+    // Calcula resumen global filtrado
+    const resumen = getResumenGlobalFiltrado({
+      inversiones,
+      ppcMap,
+      marketPrices,
+      mergeTransactions: merge,
+      showInARS,
+      cclPrice,
+    });
+
+    const resultadoPorcentaje =
+        resumen.invertido > 0
+            ? (resumen.cambioTotal / resumen.invertido) * 100
+            : 0;
+
+    return {
+      ...resumen,
+      resultadoPorcentaje,
+      totalInversiones: inversiones.length,
+    };
+  }
+
+  /**
+   * Devuelve la evolución del capital a lo largo del tiempo para graficar.
+   * Agrupa por mes y tipo ('Cripto', 'CEDEAR', 'Acción') y el total.
+   * Si showInARS es true, todos los valores están en ARS; si es false, en USD.
+   * Solo considera compras (no ventas).
+   */
+  function getCapitalEvolutionData({ showInARS = true }: { showInARS?: boolean } = {}) {
+    // Ordenar inversiones por fecha
+    const sorted = [...investments].sort((a, b) =>
+      new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime()
+    );
+    if (sorted.length === 0) return [];
+
+    // Agrupa por mes y suma tenencia (no considera ventas)
+    const timeline: Record<string, { Cripto: number; CEDEAR: number; Acción: number }> = {};
+
+    sorted.forEach(inv => {
+      const dateObj = new Date(inv.purchaseDate);
+      // Formato año-mes (puede cambiarse a día o semana si querés)
+      const label = dateObj.toISOString().slice(0, 7);
+
+      const key = inv.type;
+      const priceKey = inv.type + '-' + inv.ticker.toUpperCase();
+      let price = isValidPrice(marketPrices[priceKey]) ? marketPrices[priceKey] : inv.purchasePrice;
+      let qty = inv.quantity;
+      let value = price * qty;
+
+      if (inv.type === 'Cripto') {
+        if (showInARS && cclPrice) value = price * cclPrice * qty;
+        if (!showInARS && inv.currency === 'ARS' && cclPrice) value = (price * qty) / cclPrice;
+      } else {
+        if (inv.currency === 'USD' && showInARS && cclPrice) value = price * cclPrice * qty;
+        if (inv.currency === 'ARS' && !showInARS && cclPrice) value = (price * qty) / cclPrice;
+      }
+
+      // Si no existe el mes, iniciar
+      if (!timeline[label]) timeline[label] = { Cripto: 0, CEDEAR: 0, Acción: 0 };
+      timeline[label][key] += value;
+    });
+
+    // Transformar a array acumulando valores
+    const months = Object.keys(timeline).sort();
+    let lastCripto = 0, lastCEDEAR = 0, lastAcción = 0;
+    const out = months.map(month => {
+      // Acumulado hasta este mes
+      lastCripto += timeline[month].Cripto;
+      lastCEDEAR += timeline[month].CEDEAR;
+      lastAcción += timeline[month].Acción;
+      return {
+        fecha: month,
+        Cripto: lastCripto,
+        CEDEAR: lastCEDEAR,
+        Acción: lastAcción,
+        total: lastCripto + lastCEDEAR + lastAcción,
+      };
+    });
+    return out;
+  }
+
   return {
     investments,
     loading,
@@ -520,6 +770,7 @@ export function usePortfolioData() {
     assetMap,
     getAssetKey,
     getNormalizedPpcKey,
+    ppcMap,
     reloadInvestments,
     addInvestment,
     updateInvestment,
@@ -529,5 +780,9 @@ export function usePortfolioData() {
     exportToCSV,
     resumenGlobalTotal,
     resumenPorTipo,
+    getResumenGlobalFiltrado,
+    getDisplayedInvestments,
+    getResumenDashboardFiltrado,
+    getCapitalEvolutionData,
   };
 }

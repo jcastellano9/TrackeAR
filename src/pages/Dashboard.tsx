@@ -52,19 +52,33 @@ const Dashboard: React.FC = () => {
   const supabase = useSupabase();
   const { user } = useAuth();
 
+  // Estado para alternar entre ARS y USD
+  const [showInARS, setShowInARS] = useState(true);
+  // Filter by asset type for both summary and charts
+  const [typeFilter, setTypeFilter] = useState<'Todos' | 'Cripto' | 'CEDEAR' | 'Acción'>('Todos');
+
   const {
     investments,
     loading: loadingDashboard,
     error: dashboardError,
-    resumenGlobalTotal,
-    cclPrice,
+    getResumenDashboardFiltrado,
+    getCapitalEvolutionData,
     marketPrices,
-    resumenPorTipo,
+    cclPrice,
   } = usePortfolioData();
-  const totalInvested = resumenGlobalTotal.invertido;
-  const currentValue = resumenGlobalTotal.valorActual;
-  const profit = resumenGlobalTotal.cambioTotal;
+
+  // Obtener resumen global filtrado según los parámetros actuales
+  const resumenGlobal = getResumenDashboardFiltrado({
+    typeFilter,
+    merge: true,
+    search: '',
+    showInARS,
+  });
+  const totalInvested = resumenGlobal?.invertido ?? 0;
+  const currentValue = resumenGlobal?.valorActual ?? 0;
+  const profit = resumenGlobal?.cambioTotal ?? 0;
   const profitPercentage = totalInvested > 0 ? (profit / totalInvested) * 100 : 0;
+
 
 
   // Market data states
@@ -118,109 +132,150 @@ const Dashboard: React.FC = () => {
     fetchInflationData();
   }, []);
 
-  // Portfolio distribution using resumenPorTipo from hook
+  // Portfolio distribution recalculated per type using filtered current values
   const distributionData = React.useMemo(() => {
-    const labels = Object.keys(resumenPorTipo) as Array<'Cripto' | 'CEDEAR' | 'Acción'>;
-    const data = labels.map(label => resumenPorTipo[label]);
+    // Always these three labels
+    const labels = ['Cripto', 'CEDEAR', 'Acción'] as const;
+
+    // Calculate current value per asset type using the hook’s filtered summary
+    const values = labels.map(type => {
+      const r = getResumenDashboardFiltrado({
+        typeFilter: type,
+        merge: true,
+        search: '',
+        showInARS,
+      });
+      return r.valorActual || 0;
+    });
+
+    const total = values.reduce((sum, v) => sum + v, 0);
+    const data = total === 0 ? [1, 0, 0] : values;
+
     return {
       labels,
       datasets: [{
         data,
-        backgroundColor: ['#F97316','#A855F7','#0EA5E9'],
+        backgroundColor: ['#F97316', '#A855F7', '#0EA5E9'],
         borderColor: ['#EA580C','#9333EA','#0284C7'],
         borderWidth: 1,
       }]
     };
-  }, [resumenPorTipo]);
+  }, [getResumenDashboardFiltrado, showInARS]);
 
   // Temporal filter state for capital evolution chart
   const [selectedRange, setSelectedRange] = useState('1Y');
 
-  // Capital evolution data - alineado en colores con la distribución del portfolio
-  const [capitalData, setCapitalData] = useState({
-    labels: ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'],
-    datasets: [
-      {
-        label: 'Cripto',
-        data: [40000, 42000, 41000, 45000, 47000, 48000], // Ejemplo
-        fill: true,
-        backgroundColor: 'rgba(249, 115, 22, 0.2)', // naranja
-        borderColor: '#F97316',
-        tension: 0.3
-      },
-      {
-        label: 'CEDEARs',
-        data: [60000, 61000, 60000, 65000, 70000, 75000], // Ejemplo
-        fill: true,
-        backgroundColor: 'rgba(168, 85, 247, 0.2)', // violeta
-        borderColor: '#A855F7',
-        tension: 0.3
-      },
-      {
-        label: 'Acciones',
-        data: [50000, 57000, 54000, 65000, 73000, 82000], // Ejemplo
-        fill: true,
-        backgroundColor: 'rgba(14, 165, 233, 0.2)', // celeste claro
-        borderColor: '#0EA5E9', // celeste fuerte
-        tension: 0.3
-      }
-    ]
+  // --- Capital evolution chart using real data from hook ---
+  const [capitalData, setCapitalData] = useState<{ labels: string[]; datasets: any[] }>({
+    labels: [],
+    datasets: [],
   });
 
-
-  // --- Capital evolution chart temporal filter logic ---
-  const allLabels = ['Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic', 'Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun'];
-
-  const fullCapitalDataset = {
-    labels: allLabels,
-    datasets: [
-      {
-        label: 'Cripto',
-        data: [38000, 40000, 42000, 41000, 40500, 39800, 40000, 42000, 41000, 45000, 47000, 48000],
-        backgroundColor: 'rgba(249, 115, 22, 0.2)',
-        borderColor: '#F97316',
-        tension: 0.3,
-        fill: true
-      },
-      {
-        label: 'CEDEARs',
-        data: [53000, 55000, 57000, 56500, 56200, 57000, 60000, 61000, 60000, 65000, 70000, 75000],
-        backgroundColor: 'rgba(168, 85, 247, 0.2)',
-        borderColor: '#A855F7',
-        tension: 0.3,
-        fill: true
-      },
-      {
-        label: 'Acciones',
-        data: [46000, 47000, 51000, 52000, 53000, 54000, 50000, 57000, 54000, 65000, 73000, 82000],
-        backgroundColor: 'rgba(14, 165, 233, 0.2)', // celeste claro
-        borderColor: '#0EA5E9', // celeste fuerte
-        tension: 0.3,
-        fill: true
-      }
-    ]
-  };
-
-  const rangeMap: { [key: string]: number } = {
-    '1W': 1,
-    '1M': 1,
-    '3M': 3,
-    '6M': 6,
-    'YTD': 6,
-    '1Y': 12
-  };
-
   useEffect(() => {
-    const monthsToShow = rangeMap[selectedRange];
-    const filteredData = {
-      labels: allLabels.slice(-monthsToShow),
-      datasets: fullCapitalDataset.datasets.map(ds => ({
-        ...ds,
-        data: ds.data.slice(-monthsToShow)
-      }))
+    // Obtener la evolución real del capital (array de { fecha, Cripto, CEDEAR, Accion, total })
+    const dataRaw = getCapitalEvolutionData({ showInARS }) || [];
+    if (!Array.isArray(dataRaw) || dataRaw.length === 0) {
+      setCapitalData({ labels: [], datasets: [] });
+      return;
+    }
+    // Extraer labels y series tal cual vienen del hook, sin ninguna conversión
+    const labels = dataRaw.map(item => item.fecha);
+    const seriesCripto = dataRaw.map(item => item.Cripto);
+    const seriesCedear = dataRaw.map(item => item.CEDEAR);
+    // Usar 'Acción' como clave
+    const seriesAccion = dataRaw.map(item => item['Acción'] ?? item.Accion);
+    // --- Adjustment logic for ARS/USD view ---
+    const cclRate = cclPrice ?? 1;
+    let seriesCriptoAdjusted = seriesCripto;
+    let seriesCedearAdjusted = seriesCedear;
+    let seriesAccionAdjusted = seriesAccion;
+    if (showInARS) {
+      // In ARS view, only actions and CEDEAR are multiplied by CCL
+      seriesCedearAdjusted = seriesCedear.map(val => val / cclRate);
+      seriesAccionAdjusted = seriesAccion.map(val => val / cclRate);
+    } else {
+      // In USD view, only crypto is divided by CCL
+      seriesCedearAdjusted = seriesCedear.map(val => val / cclRate);
+      seriesAccionAdjusted = seriesAccion.map(val => val / cclRate);
+    }
+    const seriesTotal = seriesCriptoAdjusted.map((_, idx) =>
+      seriesCriptoAdjusted[idx] + seriesCedearAdjusted[idx] + seriesAccionAdjusted[idx]
+    );
+
+    // Colores por tipo de activo
+    const colorMap = {
+      Cripto: { bg: 'rgba(249, 115, 22, 0.2)', border: '#F97316' },
+      CEDEAR: { bg: 'rgba(168, 85, 247, 0.2)', border: '#A855F7' },
+      Acción: { bg: 'rgba(14, 165, 233, 0.2)', border: '#0EA5E9' },
     };
-    setCapitalData(filteredData);
-  }, [selectedRange]);
+
+    // Construir datasets, filtrar por typeFilter si corresponde
+    let datasets;
+    if (typeFilter === 'Todos') {
+      datasets = [
+        {
+          label: 'Cripto',
+          data: seriesCriptoAdjusted,
+          fill: true,
+          backgroundColor: colorMap.Cripto.bg,
+          borderColor: colorMap.Cripto.border,
+          tension: 0.3,
+        },
+        {
+          label: 'CEDEAR',
+          data: seriesCedearAdjusted,
+          fill: true,
+          backgroundColor: colorMap.CEDEAR.bg,
+          borderColor: colorMap.CEDEAR.border,
+          tension: 0.3,
+        },
+        {
+          label: 'Acción',
+          data: seriesAccionAdjusted,
+          fill: true,
+          backgroundColor: colorMap.Acción.bg,
+          borderColor: colorMap.Acción.border,
+          tension: 0.3,
+        },
+        {
+          label: 'Total',
+          data: seriesTotal,
+          fill: false,
+          borderColor: '#1E293B',
+          backgroundColor: 'rgba(30,41,59,0.1)',
+          borderWidth: 2,
+          pointRadius: 2,
+          tension: 0.3,
+          type: 'line',
+          borderDash: [5, 5],
+        },
+      ];
+    } else {
+      const mapSeries: Record<'Cripto' | 'CEDEAR' | 'Acción', number[]> = {
+        Cripto: seriesCriptoAdjusted,
+        CEDEAR: seriesCedearAdjusted,
+        Acción: seriesAccionAdjusted,
+      };
+      const selectedSeries = mapSeries[typeFilter];
+      datasets = [
+        {
+          label: typeFilter,
+          data: selectedSeries,
+          fill: true,
+          backgroundColor: colorMap[typeFilter].bg,
+          borderColor: colorMap[typeFilter].border,
+          tension: 0.3,
+        }
+      ];
+    }
+    setCapitalData({ labels, datasets });
+  }, [
+    showInARS,
+    investments,
+    marketPrices,
+    cclPrice,
+    typeFilter,
+  ]);
 
 
   // Fetch market data
@@ -281,16 +336,32 @@ const Dashboard: React.FC = () => {
     responsive: true,
     plugins: {
       legend: {
-        position: 'top' as const,
+        display: false,
       },
       tooltip: {
-        mode: 'index' as const,
+        mode: 'index',
         intersect: false,
-      },
+        callbacks: {
+          label: function(context) {
+            const label = context.dataset.label || '';
+            const value = context.parsed.y ?? context.raw;
+            return showInARS
+              ? `${label}: ${value.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+              : `${label}: ${value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+          }
+        }
+      }
     },
     scales: {
       y: {
         beginAtZero: false,
+        ticks: {
+          callback: function(value) {
+            return showInARS
+              ? value.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
+              : value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          }
+        }
       },
     },
     interaction: {
@@ -300,6 +371,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  // ---- PATCHED getCapitalEvolutionData to use "Acción" consistently ----
+  // (If you move this function, keep the patch below)
   // Doughnut chart options
   const doughnutOptions = {
     responsive: true,
@@ -349,13 +422,31 @@ const Dashboard: React.FC = () => {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
       >
-        <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h1>
+        <div className="flex items-center">
+          <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Dashboard</h1>
+          <button
+            onClick={() => setShowInARS(prev => !prev)}
+            className={`ml-4 px-4 py-2 rounded-lg text-sm flex items-center gap-2 transition-colors ${
+              showInARS
+                ? 'bg-green-600 text-white hover:bg-green-700'
+                : 'bg-[#0EA5E9] text-white hover:bg-[#0284c7]'
+            }`}
+          >
+            <DollarSign size={16} className="text-white" />
+            Ver en {showInARS ? 'USD' : 'ARS'}
+          </button>
+        </div>
         <p className="text-gray-600 dark:text-gray-300">Bienvenido a tu panel financiero</p>
       </motion.div>
 
-      {/* Main indicators */}
+      {/*
+        Main indicators
+        Todos los KPIs principales (Total Invertido, Valor Actual, Ganancia/Pérdida, Rendimiento)
+        usan exclusivamente los valores de resumenGlobal del hook.
+        El botón ARS/USD solo cambia el formato visual, no la lógica ni el campo de origen.
+      */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Total Invested */}
+        {/* Total Invertido */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, y: 20 }}
@@ -364,11 +455,15 @@ const Dashboard: React.FC = () => {
         >
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Total Invertido</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Total Invertido ({showInARS ? 'ARS' : 'USD'})
+              </p>
               {loadingDashboard ? (
                 <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1"></div>
               ) : (
-                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 mt-1">{formatARS(totalInvested)}</p>
+                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 mt-1">
+                  {showInARS ? formatARS(totalInvested) : formatUSD(totalInvested)}
+                </p>
               )}
             </div>
             <div className="p-2 bg-blue-100 rounded-lg">
@@ -377,7 +472,7 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Current Value */}
+        {/* Valor Actual */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, y: 20 }}
@@ -386,11 +481,15 @@ const Dashboard: React.FC = () => {
         >
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Valor Actual</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Valor Actual ({showInARS ? 'ARS' : 'USD'})
+              </p>
               {loadingDashboard ? (
                 <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1"></div>
               ) : (
-                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 mt-1">{formatARS(currentValue)}</p>
+                <p className="text-xl font-bold text-gray-800 dark:text-gray-100 mt-1">
+                  {showInARS ? formatARS(currentValue) : formatUSD(currentValue)}
+                </p>
               )}
             </div>
             <div className="p-2 bg-purple-100 rounded-lg">
@@ -399,7 +498,7 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Profit/Loss */}
+        {/* Ganancia/Pérdida */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, y: 20 }}
@@ -408,13 +507,15 @@ const Dashboard: React.FC = () => {
         >
           <div className="flex justify-between items-start">
             <div>
-              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">Ganancia/Pérdida</p>
+              <p className="text-sm font-medium text-gray-500 dark:text-gray-400">
+                Ganancia/Pérdida ({showInARS ? 'ARS' : 'USD'})
+              </p>
               {loadingDashboard ? (
                 <div className="h-7 w-28 bg-gray-200 animate-pulse rounded mt-1"></div>
               ) : (
                 <div className="flex items-center mt-1">
                   <p className={`text-xl font-bold ${profit >= 0 ? 'text-green-600' : 'text-red-600'} dark:text-gray-100`}>
-                    {formatARS(profit)}
+                    {showInARS ? formatARS(profit) : formatUSD(profit)}
                   </p>
                   {profit >= 0 ? (
                     <ArrowUpRight size={18} className="ml-1 text-green-600" />
@@ -434,7 +535,7 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Performance */}
+        {/* Rendimiento */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, y: 20 }}
@@ -477,7 +578,6 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* Charts */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Capital Evolution */}
         <motion.div
@@ -490,7 +590,7 @@ const Dashboard: React.FC = () => {
           <div className="mb-4 flex flex-wrap justify-between items-center gap-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Evolución del Capital</h2>
             <div className="flex gap-2 text-sm">
-              {['1W', '1M', '3M', '6M', 'YTD', '1Y'].map((label) => (
+              {['1W','1M','3M','6M','YTD','1Y'].map(label => (
                 <button
                   key={label}
                   onClick={() => setSelectedRange(label)}
@@ -507,6 +607,37 @@ const Dashboard: React.FC = () => {
           </div>
           <div className="min-h-[18rem] sm:min-h-[20rem] md:min-h-[22rem]">
             <Line data={capitalData} options={lineOptions} />
+          </div>
+          {/* Below the line chart: interactive legend buttons */}
+          <div className="mt-4 flex items-center justify-center gap-4 text-sm">
+            {['Cripto','CEDEAR','Acción','Todos'].map(label => (
+              <button
+                key={label}
+                onClick={() => setTypeFilter(label as 'Todos'|'Cripto'|'CEDEAR'|'Acción')}
+                className={`
+                  px-2 py-1 rounded text-sm transition
+                  ${
+                    typeFilter === label
+                      ? label === 'Cripto'
+                        ? 'bg-orange-100 text-orange-600 font-semibold'
+                        : label === 'CEDEAR'
+                        ? 'bg-purple-100 text-purple-600 font-semibold'
+                        : label === 'Acción'
+                        ? 'bg-sky-100 text-sky-600 font-semibold'
+                        : 'bg-gray-200 text-gray-900 font-semibold'
+                      : label === 'Cripto'
+                      ? 'text-orange-600 hover:bg-orange-50'
+                      : label === 'CEDEAR'
+                      ? 'text-purple-600 hover:bg-purple-50'
+                      : label === 'Acción'
+                      ? 'text-sky-600 hover:bg-sky-50'
+                      : 'text-gray-600 hover:bg-gray-100'
+                  }
+                `}
+              >
+                {label}
+              </button>
+            ))}
           </div>
         </motion.div>
 
