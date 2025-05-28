@@ -96,11 +96,11 @@ const Analysis: React.FC = () => {
   // Dollar visual filter logic: selectedCurrency and filteredDollarQuotes
   const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'Bancos' | 'Alternativos' | 'Billeteras Virtuales'>('USD');
   // Ordenamiento global de cotizaciones
-  const [sortOption, setSortOption] = useState<'alphabetical' | 'buyAsc' | 'buyDesc' | 'sellAsc' | 'sellDesc'>('alphabetical');
+  const [sortOption, setSortOption] = useState<'alphabeticalAsc' | 'alphabeticalDesc' | 'buyAsc' | 'buyDesc' | 'sellAsc' | 'sellDesc'>('alphabeticalAsc');
   // Cripto visual filter logic: selectedToken
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   // PIX visual filter logic: selectedPixSymbol
-  const [selectedPixSymbol, setSelectedPixSymbol] = useState<string | null>(null);
+  const [selectedPixSymbol, setSelectedPixSymbol] = useState<'ARS' | 'USD'>('ARS');
   // Filtro para cotizaciones de dólar según selección visual
   const filteredDollarQuotes = (() => {
     let filtered = dollarQuotes.filter(({ name }) => {
@@ -402,7 +402,8 @@ const Analysis: React.FC = () => {
   // Ordenar cotizaciones según opción seleccionada
   const sortQuotes = (quotes: Quote[]) => {
     return quotes.slice().sort((a, b) => {
-      if (sortOption === 'alphabetical') return a.name.localeCompare(b.name);
+      if (sortOption === 'alphabeticalAsc') return a.name.localeCompare(b.name);
+      if (sortOption === 'alphabeticalDesc') return b.name.localeCompare(a.name);
       if (sortOption === 'buyAsc') return (a.buy ?? Infinity) - (b.buy ?? Infinity);
       if (sortOption === 'buyDesc') return (b.buy ?? -Infinity) - (a.buy ?? -Infinity);
       if (sortOption === 'sellAsc') return (a.sell ?? Infinity) - (b.sell ?? Infinity);
@@ -414,6 +415,16 @@ const Analysis: React.FC = () => {
   // Mejor cotización PIX para pagar
   const bestPixQuote = pixQuotes
     .filter(q => selectedPixSymbol ? q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`) : true)
+    .reduce((best, current) => {
+      if (!best || (current.buy !== null && current.buy < (best.buy ?? Infinity))) {
+        return current;
+      }
+      return best;
+    }, null as Quote | null);
+  // Mejor cotización PIX en ARS (excluyendo tarjetas)
+  const bestArsPixQuote = pixQuotes
+    .filter(q => q.name.toLowerCase().includes('paga con ars'))
+    .filter(q => !q.name.toLowerCase().includes('tarjeta'))
     .reduce((best, current) => {
       if (!best || (current.buy !== null && current.buy < (best.buy ?? Infinity))) {
         return current;
@@ -490,73 +501,73 @@ const Analysis: React.FC = () => {
 
 
   // Quote card component
-  const QuoteCard = ({ quote }: { quote: Quote }) => (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 cursor-pointer"
-      onClick={() => quote.source && window.open(quote.source, '_blank')}
-    >
-      <div className="flex justify-between items-start mb-4">
-        <div className="flex items-center space-x-2">
-          {quote.logo && (
-            <img src={quote.logo} alt={quote.name} className="w-7 h-7 rounded-full border border-gray-200 dark:border-gray-700" />
-          )}
-          <div>
-            <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
-              {quote.name.split('—')[0].trim()}
-            </h3>
-            {/* Removed the link text rendering for quote.source */}
+  const QuoteCard = ({ quote }: { quote: Quote }) => {
+    // Special handling for PIX USD cards: invert the rate shown (1 / buy)
+    let isPixUsd = activeQuoteSection === 'pix' && selectedPixSymbol === 'USD';
+    let displayLabel = activeQuoteSection === 'pix' ? 'Pagar 1 Real es' : 'Venta';
+    let displayValue: number | null | undefined = quote.buy;
+    if (isPixUsd && typeof quote.buy === 'number' && quote.buy !== 0) {
+      displayValue = 1 / quote.buy;
+    }
+    let displaySuffix = '';
+    let displayNote = '';
+    if (isPixUsd) {
+      displaySuffix = 'R$';
+      displayNote = 'para pagar';
+    }
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="bg-white dark:bg-gray-800 rounded-xl shadow-sm p-6 border border-gray-200 dark:border-gray-700 cursor-pointer"
+        onClick={() => quote.source && window.open(quote.source, '_blank')}
+      >
+        <div className="flex justify-between items-start mb-4">
+          <div className="flex items-center space-x-2">
+            {quote.logo && (
+              <img src={quote.logo} alt={quote.name} className="w-7 h-7 rounded-full border border-gray-200 dark:border-gray-700" />
+            )}
+            <div>
+              <h3 className="text-lg font-semibold text-gray-800 dark:text-gray-100">
+                {quote.name.split('—')[0].trim()}
+              </h3>
+            </div>
+            {quote.is24x7 && (
+              <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-semibold">24/7</span>
+            )}
           </div>
-          {quote.is24x7 && (
-            <span className="ml-2 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-semibold">24/7</span>
-          )}
+          <div className="flex flex-col items-end">
+          </div>
         </div>
-        <div className="flex flex-col items-end">
-          {typeof quote.spread === 'number' && (
-            <span className="text-xs text-gray-500 dark:text-gray-400 mb-1">
-              Spread: <span className="font-medium text-gray-700 dark:text-gray-200">{quote.spread.toFixed(2)}</span>
-            </span>
-          )}
-          {typeof quote.variation === 'number' && (
-            <div className={`flex items-center ${
-              quote.variation >= 0 ? 'text-green-600' : 'text-red-600'
-            }`}>
-              {quote.variation >= 0 ? (
-                <ArrowUpRight size={16} className="mr-1" />
-              ) : (
-                <ArrowDownRight size={16} className="mr-1" />
-              )}
-              <span className="text-sm font-medium">
-                {Math.abs(quote.variation).toFixed(2)}%
-              </span>
+
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{displayLabel}</p>
+            <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+              {displayValue != null
+                ? isPixUsd
+                  ? ` ${displayValue.toFixed(2)} ${displaySuffix}`
+                  : formatCurrency(displayValue)
+                : 'N/A'}
+            </p>
+            {isPixUsd && (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">{displayNote}</p>
+            )}
+          </div>
+          {activeQuoteSection !== 'pix' && (
+            <div>
+              <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Compra</p>
+              <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
+                {typeof quote.sell === 'number'
+                  ? formatCurrency(quote.sell)
+                  : 'N/A'}
+              </p>
             </div>
           )}
         </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Compra</p>
-          <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-            {typeof quote.buy === 'number'
-              ? formatCurrency(quote.buy)
-              : 'N/A'}
-          </p>
-        </div>
-        {activeQuoteSection !== 'pix' && (
-          <div>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">Venta</p>
-            <p className="text-xl font-semibold text-gray-800 dark:text-gray-100">
-              {typeof quote.sell === 'number'
-                ? formatCurrency(quote.sell)
-                : 'N/A'}
-            </p>
-          </div>
-        )}
-      </div>
-    </motion.div>
-  );
+      </motion.div>
+    );
+  };
 
 
 return (
@@ -596,7 +607,7 @@ return (
                 selectedToken ? `Criptomonedas: ${selectedToken}` : 'Criptomonedas'
               )}
               {activeQuoteSection === 'pix' && (
-                selectedPixSymbol ? `PIX (${selectedPixSymbol})` : 'Cotizaciones PIX'
+                selectedPixSymbol ? `PIX` : 'Cotizaciones PIX'
               )}
             </h3>
           </div>
@@ -663,17 +674,32 @@ return (
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Última actualización: {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false })}
               </p>
-              {activeQuoteSection !== 'dollar' && (
+              {(activeQuoteSection === 'crypto'
+                || activeQuoteSection === 'pix'
+                || (activeQuoteSection === 'dollar' && (selectedCurrency === 'Bancos' || selectedCurrency === 'Billeteras Virtuales'))
+              ) && (
                 <select
                   value={sortOption}
                   onChange={(e) => setSortOption(e.target.value as any)}
                   className="bg-white dark:bg-gray-700 text-gray-800 dark:text-gray-100 border border-gray-300 dark:border-gray-600 rounded px-4 py-1.5 text-sm w-60"
                 >
-                  <option value="alphabetical">Orden alfabético</option>
-                  <option value="buyAsc">Mejor compra (menor a mayor)</option>
-                  <option value="buyDesc">Mejor compra (mayor a menor)</option>
-                  <option value="sellAsc">Mejor venta (menor a mayor)</option>
-                  <option value="sellDesc">Mejor venta (mayor a menor)</option>
+                  {activeQuoteSection === 'pix' ? (
+                    <>
+                      <option value="alphabeticalAsc">Orden A → Z</option>
+                      <option value="alphabeticalDesc">Orden Z → A</option>
+                      <option value="buyAsc">R$ ↑</option>
+                      <option value="buyDesc">R$ ↓</option>
+                    </>
+                  ) : (
+                    <>
+                      <option value="alphabeticalAsc">Orden A → Z</option>
+                      <option value="alphabeticalDesc">Orden Z → A</option>
+                      <option value="buyAsc">Venta ↑</option>
+                      <option value="buyDesc">Venta ↓</option>
+                      <option value="sellAsc">Compra ↑</option>
+                      <option value="sellDesc">Compra ↓</option>
+                    </>
+                  )}
                 </select>
               )}
             </div>
@@ -704,7 +730,13 @@ return (
             , quotes[0]);
 
             const BestCard = ({ title, value, entity }: { title: string, value: string, entity: Quote }) => (
-              <div className="rounded-xl p-4 border flex-1 bg-blue-50 dark:bg-blue-900 border-blue-300 dark:border-blue-600">
+              <div
+                className={`rounded-xl p-4 border flex-1
+                  ${activeQuoteSection === 'dollar'
+                    ? 'bg-green-50 dark:bg-green-900 border-green-300 dark:border-green-600'
+                    : 'bg-orange-50 dark:bg-orange-900 border-orange-300 dark:border-orange-600'
+                  }`}
+              >
                 <p className="text-sm text-gray-500 dark:text-gray-400 mb-1">{title}</p>
                 <p className="text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">{value}</p>
                 <div className="flex items-center space-x-2">
@@ -719,8 +751,8 @@ return (
 
             return (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                <BestCard title="Mejor para comprar" value={formatCurrency(bestBuy.buy || 0)} entity={bestBuy} />
-                <BestCard title="Mejor para vender" value={formatCurrency(bestSell.sell || 0)} entity={bestSell} />
+                <BestCard title="Mejor para vender" value={formatCurrency(bestBuy.buy || 0)} entity={bestBuy} />
+                <BestCard title="Mejor para comprar" value={formatCurrency(bestSell.sell || 0)} entity={bestSell} />
                 <BestCard title="Menor Spread" value={formatCurrency(bestSpread.spread || 0)} entity={bestSpread} />
               </div>
             );
@@ -775,23 +807,73 @@ return (
               )}
               {activeQuoteSection === 'pix' && (
                 <>
-                  {bestPixQuote && (
-                    <div className="rounded-xl p-4 border mb-4 bg-blue-50 dark:bg-blue-900 border-blue-300 dark:border-blue-600">
-                      <p className="text-sm text-gray-600 dark:text-gray-300 mb-1">
-                        La mejor app para pagar en Brasil con pix en {selectedPixSymbol === 'USD' ? 'dólares' : 'pesos'} ahora es
-                        <span className="font-semibold text-blue-700 dark:text-blue-300"> {bestPixQuote.name.split('—')[0].trim()} </span>
-                        con un valor de <span className="font-bold">{formatCurrency(bestPixQuote.buy || 0)}</span>.
-                      </p>
-                    </div>
-                  )}
+                  {/* Compute filteredBySymbol, bestQuote, tarjetaMepQuote, tarjetaQuote */}
+                  {(() => {
+                    const filteredBySymbol = pixQuotes.filter(q =>
+                      selectedPixSymbol ? q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`) : true
+                    );
+                    const bestQuote = selectedPixSymbol === 'ARS' ? bestArsPixQuote : bestPixQuote;
+                    const tarjetaMepQuote = filteredBySymbol.find(q => q.name.toLowerCase().includes('tarjeta-mep'));
+                    const tarjetaQuote = filteredBySymbol.find(q =>
+                      q.name.toLowerCase().includes('tarjeta') && !q.name.toLowerCase().includes('mep')
+                    );
+                    return (
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        {bestQuote && (
+                          <div className="rounded-xl shadow-sm p-6 border border-teal-200 bg-teal-100 dark:border-teal-700 dark:bg-teal-800 text-teal-800 dark:text-teal-200">
+                            <p className="text-base">
+                              <strong>Mejor App:</strong> {bestQuote.name.split('—')[0].trim()} – <strong>
+                                {selectedPixSymbol === 'USD' && bestQuote.buy
+                                  ? (1 / bestQuote.buy).toFixed(2) + ' R$'
+                                  : formatCurrency(bestQuote.buy ?? 0)
+                                }
+                              </strong>
+                            </p>
+                          </div>
+                        )}
+                        {tarjetaMepQuote && (
+                          <div className="rounded-xl shadow-sm p-6 border border-teal-200 bg-teal-100 dark:border-teal-700 dark:bg-teal-800 text-teal-800 dark:text-teal-200">
+                            <p className="text-base">
+                              <strong>Tarjeta + MEP:</strong> <strong>
+                                {selectedPixSymbol === 'USD' && tarjetaMepQuote.buy
+                                  ? (1 / tarjetaMepQuote.buy).toFixed(2) + ' R$'
+                                  : formatCurrency(tarjetaMepQuote.buy ?? 0)
+                                }
+                              </strong>
+                            </p>
+                          </div>
+                        )}
+                        {tarjetaQuote && (
+                          <div className="rounded-xl shadow-sm p-6 border border-teal-200 bg-teal-100 dark:border-teal-700 dark:bg-teal-800 text-teal-800 dark:text-teal-200">
+                            <p className="text-base">
+                              <strong>Dólar Tarjeta:</strong> <strong>
+                                {selectedPixSymbol === 'USD' && tarjetaQuote.buy
+                                  ? (1 / tarjetaQuote.buy).toFixed(2) + ' R$'
+                                  : formatCurrency(tarjetaQuote.buy ?? 0)
+                                }
+                              </strong>
+                            </p>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+                  {/* Grid of PIX quotes excluding tarjeta items */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {sortQuotes(
-                      pixQuotes.filter(q => {
-                        if (!selectedPixSymbol) return true;
-                        return q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`);
-                      })
+                      pixQuotes
+                        .filter(q => {
+                          if (!selectedPixSymbol) return true;
+                          return q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`);
+                        })
+                        .filter(q =>
+                          !q.name.toLowerCase().includes('tarjeta')
+                        )
                     ).map((quote, index) => (
-                      <QuoteCard key={`pix-${index}`} quote={quote} />
+                      <QuoteCard
+                        key={`pix-${index}`}
+                        quote={quote}
+                      />
                     ))}
                     {pixQuotes.length === 0 && !loading && (
                       <div className="col-span-full text-center py-8 text-gray-500 dark:text-gray-400">

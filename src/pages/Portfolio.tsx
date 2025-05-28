@@ -624,8 +624,8 @@ const Portfolio: React.FC = () => {
                   className="w-full max-w-xs px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="favoritosFechaDesc">Favoritos</option>
-                  <option value="tickerAZ">Ticker A-Z</option>
-                  <option value="tickerZA">Ticker Z-A</option>
+                  <option value="tickerAZ">Ticker A → Z</option>
+                  <option value="tickerZA">Ticker Z → A</option>
                   <option value="gananciaPorcentajeAsc">Ganancia % ↑</option>
                   <option value="gananciaPorcentajeDesc">Ganancia % ↓</option>
                   <option value="gananciaValorAsc">Ganancia $ ↑</option>
