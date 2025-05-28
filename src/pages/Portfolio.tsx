@@ -341,6 +341,16 @@ const Portfolio: React.FC = () => {
     ? (resumenGlobal.cambioTotal / resumenGlobal.invertido) * 100
     : 0;
 
+  // Resumen global sin filtros de tipo
+  const resumenGlobalCompleto = getResumenGlobalFiltrado({
+    inversiones: investments,
+    ppcMap,
+    marketPrices,
+    mergeTransactions,
+    showInARS,
+    cclPrice
+  });
+
 
   return (
     <>
@@ -465,7 +475,7 @@ const Portfolio: React.FC = () => {
             <h3>Valor Total del Portafolio</h3>
             <p className="text-xl font-bold mt-1 text-current">
               {formatCurrency(
-                resumenGlobal.valorActual,
+                resumenGlobalCompleto.valorActual,
                 showInARS ? 'ARS' : 'USD'
               )}
             </p>
@@ -965,7 +975,7 @@ const Portfolio: React.FC = () => {
                             setSelectedAsset(null);
                           }}
                           placeholder={selectedAsset ? `${selectedAsset.name} (${selectedAsset.ticker})` : 'Buscar activo...'}
-                          className="flex-1 outline-none bg-transparent text-sm text-gray-800"
+                          className="flex-1 outline-none bg-transparent text-black placeholder-gray-400"
                           autoComplete="off"
                         />
                       </div>
