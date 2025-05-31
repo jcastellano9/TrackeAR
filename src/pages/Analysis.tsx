@@ -22,7 +22,7 @@ import {
   Legend,
   Filler
 } from 'chart.js';
-import { DollarSign, Bitcoin, Wallet, ArrowUpRight, ArrowDownRight, Loader, TrendingUp, AlertCircle } from 'lucide-react';
+import { DollarSign, Bitcoin, Wallet, ArrowUpRight, Loader, TrendingUp, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
 // Registrar componentes de ChartJS
@@ -110,7 +110,7 @@ const Analysis: React.FC = () => {
   // Filtrar visual de Cripto: selectedToken
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
   // Filtrar visual de PIX: selectedPixSymbol
-  const [selectedPixSymbol, setSelectedPixSymbol] = useState<'ARS' | 'USD'>('ARS');
+  const [selectedPixSymbol, setSelectedPixSymbol] = useState<'ARS' | 'USD' | null>('ARS');
   // Filtrar las cotizaciones de dólar según lo que el usuario elija (oficial, bancos o billeteras)
   const filteredDollarQuotes = (() => {
     let filtered = dollarQuotes.filter(({ name }) => {
@@ -658,13 +658,13 @@ return (
             )}
             {activeQuoteSection === 'pix' && (() => {
               // Símbolos válidos: 'ARS' y 'USD'
-              const uniquePixSymbols = ['ARS', 'USD'].filter(symbol => pixQuotes.some(q => q.name.includes(`paga con ${symbol}`)));
+              const uniquePixSymbols: ('ARS' | 'USD')[] = ['ARS', 'USD'].filter(symbol => pixQuotes.some(q => q.name.includes(`paga con ${symbol}`))) as ('ARS' | 'USD')[];
               return (
                 <div className="flex space-x-2">
                   {uniquePixSymbols.map(symbol => (
                     <button
                       key={symbol}
-                      onClick={() => setSelectedPixSymbol(symbol === selectedPixSymbol ? null : symbol)}
+                      onClick={() => setSelectedPixSymbol(symbol === selectedPixSymbol ? null : symbol as 'ARS' | 'USD')}
                       className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
                         selectedPixSymbol === symbol
                           ? 'bg-blue-600 text-white'

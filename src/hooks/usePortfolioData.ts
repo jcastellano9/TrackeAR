@@ -183,7 +183,9 @@ export function usePortfolioData() {
         // Market prices lookup
         const prices: Record<string, number> = {};
         [...formattedAssets, ...cedears, ...acciones].forEach(a => {
-          prices[a.type + '-' + a.ticker] = isValidPrice(a.price) ? a.price : undefined;
+          if (isValidPrice(a.price)) {
+            prices[a.type + '-' + a.ticker] = a.price;
+          }
         });
         setMarketPrices(prices);
       } catch (error) {

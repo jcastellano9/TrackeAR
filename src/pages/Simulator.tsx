@@ -27,35 +27,35 @@ const Simulator: React.FC = () => {
   // useState: Estados para tipo de simulación, formularios, datos y resultados
 
 
-  // Simulation type state
+  // Estado tipo de simulación
   const [simulationType, setSimulationType] = useState<'fixed' | 'wallet' | 'crypto' | 'installments'>('fixed');
 
-  // Form states
+  // Estados del formulario
   const [amount, setAmount] = useState<string>('');
   const [term, setTerm] = useState<string>('30');
   const [rate, setRate] = useState<string>('');
   const [selectedEntity, setSelectedEntity] = useState<string>('');
 
-  // Data states
+  // Estados de datos
   const [bankRates, setBankRates] = useState<Rate[]>([]);
   const [walletRates, setWalletRates] = useState<Rate[]>([]);
   const [cryptoRates, setCryptoRates] = useState<Rate[]>([]);
-  // Crypto selection states
+  // Estados de selección cripto
   const [selectedCrypto, setSelectedCrypto] = useState('');
   const [availableCryptoPlatforms, setAvailableCryptoPlatforms] = useState<Rate[]>([]);
 
-  // Search query state for Comboboxes
+  // Estado de búsqueda para Comboboxes
   const [bankQuery, setBankQuery] = useState('');
   const [walletQuery, setWalletQuery] = useState('');
   const [cryptoQuery, setCryptoQuery] = useState('');
 
-  // Results state
+  // Estado de resultados
   const [result, setResult] = useState<SimulationResult | null>(null);
 
-  // Error and validation states
+  // Estados de error y validación
   const [error, setError] = useState<string | null>(null);
 
-  // Cuotas vs Contado states
+  // Estados de Cuotas vs Contado
   const [cashPrice, setCashPrice] = useState('');
   const [installmentAmount, setInstallmentAmount] = useState('');
   const [installmentCount, setInstallmentCount] = useState('');
@@ -71,8 +71,7 @@ const Simulator: React.FC = () => {
   const [installmentResult, setInstallmentResult] = useState<InstallmentResult | null>(null);
   const [monthlyInflation, setMonthlyInflation] = useState<number | null>(null);
 
-  // useEffect: Obtener tasas de bancos, billeteras, cripto e inflación al montar
-  // Fetch rates on component mount (integración real)
+  // Obtener tasas al montar el componente (integración real)
   useEffect(() => {
 
     const fetchRates = async () => {
@@ -213,14 +212,14 @@ const Simulator: React.FC = () => {
   }, []);
 
   // handleEntitySelect: Guarda entidad y tasa seleccionada para cálculos
-  // Handle entity selection
+  // Manejar selección de entidad
   const handleEntitySelect = (entity: string, rate: number) => {
     setSelectedEntity(entity);
     setRate(rate.toString());
   };
 
   // calculateResults: Calcula monto final, interés y TEA según tipo de simulación
-  // Calculate simulation results
+  // Calcular resultados de simulación
   const calculateResults = () => {
     if (!amount || !rate || !term) {
       setError('Por favor complete todos los campos');
@@ -259,7 +258,7 @@ const Simulator: React.FC = () => {
   };
 
   // formatCurrency: Formatea número como moneda ARS sin decimales
-  // Format currency
+  // Formatear moneda
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -269,7 +268,7 @@ const Simulator: React.FC = () => {
   };
 
   // calculateInstallmentComparison: Compara cuotas vs contado ajustado por inflación y calcula CFT, proyecciones FCI y PF
-  // Cuotas vs Contado calculation
+  // Cálculo de Cuotas vs Contado
   const calculateInstallmentComparison = () => {
     const cash = parseFloat(cashPrice);
     const totalInstallment = parseFloat(installmentAmount);

@@ -1,8 +1,9 @@
 // Página principal del Dashboard con indicadores, gráficos y cotizaciones
 import React, { useEffect, useState } from 'react';
+import type { ChartOptions } from 'chart.js';
 import { usePortfolioData } from '../hooks/usePortfolioData';
-import { useSupabase } from '../contexts/SupabaseContext';
-import { useAuth } from '../contexts/AuthContext';
+// import { useSupabase } from '../contexts/SupabaseContext';
+// import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { Line, Doughnut } from 'react-chartjs-2';
 import {
@@ -67,8 +68,8 @@ const cryptoEmoji: Record<string, string> = {
 
 const Dashboard: React.FC = () => {
   // Obtener contexto de Supabase y usuario autenticado
-  const supabase = useSupabase();
-  const { user } = useAuth();
+  // const supabase = useSupabase();
+  // const { user } = useAuth();
 
   // Estados de visualización y preferencias
   const [showInARS, setShowInARS] = useState(true); // Alternar entre mostrar en ARS o USD
@@ -115,7 +116,6 @@ const Dashboard: React.FC = () => {
 
   // Estado para inflación mensual oficial: valor, fecha y posible error
   const [lastInflation, setLastInflation] = useState<number | null>(null);
-  const [lastInflationDate, setLastInflationDate] = useState<string | null>(null);
   const [inflationError, setInflationError] = useState(false);
   useEffect(() => {
     // Obtener datos de inflación desde datos.gob.ar y actualizar estado
@@ -141,7 +141,6 @@ const Dashboard: React.FC = () => {
             )[0];
           if (recentEntry) {
             setLastInflation(recentEntry.value! * 100);
-            setLastInflationDate(recentEntry.date.toISOString().split('T')[0]);
           } else {
             console.warn("No hay datos de inflación recientes.");
             setInflationError(true);
@@ -161,7 +160,7 @@ const Dashboard: React.FC = () => {
   // Recalcular distribución del portafolio por tipo usando valores actuales filtrados
   const distributionData = React.useMemo(() => {
     // Etiquetas para gráfico de dona
-    const labels = ['Criptomonedas', 'CEDEARs', 'Acciones'] as const;
+    const labels = ['Criptomonedas', 'CEDEARs', 'Acciones'] as string[];
 
     // Obtener valor actual por cada tipo de activo
     const typeKeys: ('Cripto' | 'CEDEAR' | 'Acción')[] = ['Cripto', 'CEDEAR', 'Acción'];
@@ -235,7 +234,7 @@ const Dashboard: React.FC = () => {
     const labels = filteredDataRaw.map(item => item.fecha);
     const seriesCripto = filteredDataRaw.map(item => item.Cripto);
     const seriesCedear = filteredDataRaw.map(item => item.CEDEAR);
-    const seriesAccion = filteredDataRaw.map(item => item['Acción'] ?? item.Accion);
+    const seriesAccion = filteredDataRaw.map(item => item['Acción']);
 
     // Lógica de ajuste para vista ARS/USD
     const cclRate = cclPrice ?? 1;
@@ -386,7 +385,7 @@ const Dashboard: React.FC = () => {
   }, []);
 
   // Opciones para gráfico de líneas (evolución de capital)
-  const lineOptions = {
+  const lineOptions: ChartOptions<'line'> = {
     responsive: true,
     plugins: {
       legend: {
@@ -423,7 +422,7 @@ const Dashboard: React.FC = () => {
       axis: 'x' as const,
       intersect: false
     }
-  };
+  } as ChartOptions<'line'>;
 
   // PARCHADO getCapitalEvolutionData para usar "Acción" de forma consistente
   // (Si se mueve esta función, mantener este parche)
@@ -616,7 +615,7 @@ const Dashboard: React.FC = () => {
       {/* Mostrar mensaje de error si ocurre al cargar datos del Dashboard */}
       {dashboardError && (
         <div className="bg-red-100 text-red-700 px-4 py-3 rounded mt-4">
-          Error cargando datos del dashboard: {dashboardError.message || dashboardError.toString()}
+          Error cargando datos del dashboard: {typeof dashboardError === 'string' ? dashboardError : String(dashboardError)}
         </div>
       )}
 
