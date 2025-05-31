@@ -26,7 +26,8 @@ const ResetPassword: React.FC = () => {
       setError(null);
       const { error: resetError } = await resetPassword(email);
       if (resetError) {
-        throw new Error(resetError.message || 'Error al enviar el correo de recuperación');
+        setError(resetError.message || 'Error al enviar el correo de recuperación');
+        return;
       }
       setSuccess(true);
     } catch (err) {
@@ -40,7 +41,7 @@ const ResetPassword: React.FC = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex items-center justify-center px-4">
       <motion.div
-        className="w-full max-w-md transition-colors duration-300"
+        className="w-full max-w-md transition-all duration-300"
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
@@ -86,7 +87,7 @@ const ResetPassword: React.FC = () => {
                     type="email"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400 transition-all duration-200 ease-in-out"
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-900 dark:border-gray-700 dark:text-white dark:placeholder-gray-400 transition-all duration-200 ease-in-out"
                     placeholder="correo@ejemplo.com"
                   />
                 </div>
@@ -98,7 +99,7 @@ const ResetPassword: React.FC = () => {
                     loading
                       ? 'bg-blue-400 cursor-not-allowed'
                       : 'bg-gradient-to-r from-blue-600 to-violet-600 hover:from-blue-700 hover:to-violet-700'
-                  } text-white font-medium transition-colors duration-200`}
+                  } text-white font-medium transition-all duration-200`}
                 >
                   {loading ? (
                     <span className="animate-spin rounded-full h-5 w-5 border-t-2 border-white"></span>
