@@ -21,7 +21,10 @@ interface SimulationResult {
   effectiveRate: number;
 }
 
+// Simulator: Componente para simular inversiones y comparar cuotas vs contado
 const Simulator: React.FC = () => {
+
+  // useState: Estados para tipo de simulación, formularios, datos y resultados
 
 
   // Simulation type state
@@ -68,6 +71,7 @@ const Simulator: React.FC = () => {
   const [installmentResult, setInstallmentResult] = useState<InstallmentResult | null>(null);
   const [monthlyInflation, setMonthlyInflation] = useState<number | null>(null);
 
+  // useEffect: Obtener tasas de bancos, billeteras, cripto e inflación al montar
   // Fetch rates on component mount (integración real)
   useEffect(() => {
 
@@ -208,12 +212,14 @@ const Simulator: React.FC = () => {
     fetchInflation();
   }, []);
 
+  // handleEntitySelect: Guarda entidad y tasa seleccionada para cálculos
   // Handle entity selection
   const handleEntitySelect = (entity: string, rate: number) => {
     setSelectedEntity(entity);
     setRate(rate.toString());
   };
 
+  // calculateResults: Calcula monto final, interés y TEA según tipo de simulación
   // Calculate simulation results
   const calculateResults = () => {
     if (!amount || !rate || !term) {
@@ -252,6 +258,7 @@ const Simulator: React.FC = () => {
     setError(null);
   };
 
+  // formatCurrency: Formatea número como moneda ARS sin decimales
   // Format currency
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('es-AR', {
@@ -261,6 +268,7 @@ const Simulator: React.FC = () => {
     }).format(value);
   };
 
+  // calculateInstallmentComparison: Compara cuotas vs contado ajustado por inflación y calcula CFT, proyecciones FCI y PF
   // Cuotas vs Contado calculation
   const calculateInstallmentComparison = () => {
     const cash = parseFloat(cashPrice);
@@ -323,8 +331,10 @@ const Simulator: React.FC = () => {
     setError(null);
   };
 
+  // Render: UI del simulador con selección de tipo, formulario y resultados
   return (
     <div className="space-y-6">
+      {/* Encabezado: Título e introducción del simulador */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -334,7 +344,7 @@ const Simulator: React.FC = () => {
         <p className="text-gray-600 dark:text-gray-300">Calcula rendimientos y compara alternativas de inversión</p>
       </motion.div>
 
-      {/* Simulation Type Selection */}
+      {/* Selección de tipo de simulación: Plazo fijo, Billetera, Cripto y Cuotas vs Contado */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <motion.button
           whileHover={{ scale: 1.02 }}
@@ -473,14 +483,14 @@ const Simulator: React.FC = () => {
         </motion.button>
       </div>
 
-      {/* Simulation Form */}
+      {/* Formulario de simulación según el tipo seleccionado */}
       <motion.div
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.4 }}
         className="bg-white dark:bg-gray-800 rounded-xl shadow-sm border border-gray-200 dark:border-gray-700 p-6"
       >
-        {/* Bloque para cuotas vs contado */}
+        {/* Bloque Cuotas vs Contado: inputs de precio contado, cuotas e inflación y resultados */}
         {simulationType === 'installments' ? (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start">
@@ -657,7 +667,9 @@ const Simulator: React.FC = () => {
             </div>
           </>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start self-start">
+          <>
+            {/* Bloque de simulación estándar: inputs de monto, plazo, tasa o selección cripto */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-start self-start">
             {/* Input Fields */}
             <div className="space-y-6 bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 p-6 rounded-xl shadow-md">
               <div>
@@ -717,6 +729,7 @@ const Simulator: React.FC = () => {
                   placeholder="30"
                 />
               </div>
+              {/* Sección Tasas disponibles para Plazo Fijo y Billetera usando Combobox */}
               {simulationType !== 'crypto' && (
                 <div>
                   <label htmlFor="rate" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-1">
@@ -732,6 +745,7 @@ const Simulator: React.FC = () => {
                   />
                 </div>
               )}
+              {/* Sección Crypto: selección de criptomoneda y plataforma con Combobox */}
               {simulationType === 'crypto' && (
                 <div className="p-3 bg-yellow-50 dark:bg-yellow-900 border border-yellow-200 dark:border-yellow-700 rounded-xl shadow-sm">
                   <p className="text-sm text-yellow-700 dark:text-yellow-200">
@@ -865,7 +879,7 @@ const Simulator: React.FC = () => {
               )}
               {/* Crypto selectors moved to right column */}
               {simulationType === 'crypto' && (
-                <div className="space-y-3">
+                <div className="space-y-3 overflow-visible">
                   <h4 className="font-medium text-gray-700 dark:text-gray-200 mb-1">Tasas disponibles</h4>
                   <label htmlFor="cryptoSelect" className="block text-sm font-medium text-gray-700 dark:text-gray-200 mb-2">
                     Seleccionar criptomoneda
@@ -962,6 +976,7 @@ const Simulator: React.FC = () => {
                   )}
                 </div>
               )}
+              {/* Resultados: muestra monto final, interés ganado, TEA y explicaciones según tipo */}
               {result && (
                 <div className="space-y-4 mt-6">
                   <div className="mb-2 flex items-center">
@@ -1017,7 +1032,8 @@ const Simulator: React.FC = () => {
                 </div>
               )}
             </div>
-          </div>
+            </div>
+          </>
         )}
       </motion.div>
     </div>

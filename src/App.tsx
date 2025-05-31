@@ -1,4 +1,4 @@
-// Componente principal que define las rutas y los contextos
+// App.tsx: Componente raíz que configura proveedores y rutas
 
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
@@ -15,10 +15,11 @@ import Login from './pages/auth/Login';
 import Register from './pages/auth/Register';
 import ResetPassword from './pages/auth/ResetPassword';
 
-// Envuelve rutas que requieren sesión activa
+// ProtectedRoute: Verifica si el usuario está autenticado antes de mostrar rutas protegidas
 const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
   const { user, loading } = useAuth();
-  
+
+  // Si la autenticación aún se está cargando, muestra indicador de carga
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
@@ -26,29 +27,35 @@ const ProtectedRoute = ({ children }: { children: React.ReactNode }) => {
       </div>
     );
   }
-  
+
+  // Si no hay usuario autenticado, redirige a la página de login
   if (!user) {
     return <Navigate to="/login" replace />;
   }
-  
+
   return <>{children}</>;
 };
 
+// App: Configura proveedores de contexto y define rutas de la aplicación
 function App() {
   return (
     <SupabaseProvider>
       <AuthProvider>
         <ThemeProvider>
+          {/* Router: Define rutas públicas (login, register, reset-password) y rutas protegidas */}
           <Router>
+            {/* Rutas públicas: login, registro y restablecimiento de contraseña */}
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/reset-password" element={<ResetPassword />} />
+              {/* Ruta raíz protegida: requiere sesión activa para acceder a Layout y rutas internas */}
               <Route path="/" element={
                 <ProtectedRoute>
                   <Layout />
                 </ProtectedRoute>
               }>
+                {/* Rutas internas después del login: Dashboard, Portfolio, Analysis, Simulator y Profile */}
                 <Route index element={<Dashboard />} />
                 <Route path="portfolio" element={<Portfolio />} />
                 <Route path="analysis" element={<Analysis />} />

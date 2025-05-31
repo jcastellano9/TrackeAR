@@ -35,7 +35,6 @@ interface Props {
 
 const getCryptoLogoUrl = (symbol: string) => {
   const lower = symbol.toLowerCase();
-  // fallback a CoinCap CDN (ya que los principales se buscan en predefinedAssets)
   return `https://assets.coincap.io/assets/icons/${lower}@2x.png`;
 };
 
@@ -67,32 +66,32 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
         const plazosData = await plazosRes.json();
         const criptoData = await criptoRes.json();
 
-        // Fetch Prex detail from Comparatasas
+        // Obtener detalle de Prex
         const prexRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Allaria%20Ahorro%20-%20Clase%20A');
         const prexJson = await prexRes.json();
         const prexTna = prexJson?.detalle?.rendimientos?.diario?.tna || 0;
 
-        // Fetch Cocos detail from Comparatasas
+        // Obtener detalle de Cocos
         const cocosRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Cocos%20Daruma%20Renta%20Mixta%20-%20Clase%20A');
         const cocosJson = await cocosRes.json();
         const cocosTna = cocosJson?.detalle?.rendimientos?.diario?.tna || 0;
 
-        // Fetch Personal Pay detail from Comparatasas
+        // Obtener detalle de Personal Pay
         const personalPayRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Delta%20Pesos%20-%20Clase%20X');
         const personalPayJson = await personalPayRes.json();
         const personalPayTna = personalPayJson?.detalle?.rendimientos?.diario?.tna || 0;
 
-        // Fetch MercadoPago detail from Comparatasas
+        // Obtener detalle de MercadoPago
         const mercadoPagoRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Mercado%20Pago%20-%20Clase%20A');
         const mercadoPagoJson = await mercadoPagoRes.json();
         const mercadoPagoTna = mercadoPagoJson?.detalle?.rendimientos?.diario?.tna || 0;
 
-        // Fetch LB Finanzas detail from Comparatasas
+        // Obtener detalle de LB Finanzas
         const lbRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/ST%20Zero%20-%20Clase%20D');
         const lbJson = await lbRes.json();
         const lbTna = lbJson?.detalle?.rendimientos?.diario?.tna || 0;
 
-        // Fetch Lemon fondo detail from Comparatasas
+        // Obtener detalle de Lemon
         const lemonRes = await fetch('https://good-cafci.comparatasas.ar/v1/finanzas/fci/detalle/nombre/Fima%20Premium%20-%20Clase%20P');
         const lemonJson = await lemonRes.json();
         const lemonTna = lemonJson?.detalle?.rendimientos?.diario?.tna || 0;
@@ -343,7 +342,6 @@ const YieldAnalysis: React.FC<Props> = ({ activeSection }) => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 {
                   // Normalización de nombre de entidad para buscar logo
-                  // Definir la función normalize antes del mapeo
                   (() => {
                     const normalize = (s: string) =>
                       s

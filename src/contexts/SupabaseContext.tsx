@@ -1,6 +1,4 @@
-// Provee el cliente de Supabase a toda la app.
-// Esto permite acceder al cliente desde cualquier componente
-// usando el hook `useSupabase`.
+// SupabaseContext: Provee el cliente Supabase mediante React Context
 
 import React, { createContext, useContext } from 'react';
 import { supabase } from '../lib/supabase';

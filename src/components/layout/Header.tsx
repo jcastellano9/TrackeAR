@@ -14,6 +14,7 @@ const Header: React.FC = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
 
+  // useEffect: detecta scroll para cambiar estilos del header
   useEffect(() => {
     const handleScroll = () => {
       setScrolled(window.scrollY > 10);
@@ -23,6 +24,7 @@ const Header: React.FC = () => {
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
+  // navItems: rutas, etiquetas e íconos para la navegación
   const navItems = [
     { path: '/', label: 'Inicio', icon: <LayoutDashboard size={20} /> },
     { path: '/portfolio', label: 'Mi Cartera', icon: <Briefcase size={20} /> },
@@ -31,15 +33,18 @@ const Header: React.FC = () => {
     { path: '/profile', label: 'Perfil', icon: <User size={20} /> },
   ];
 
+  // handleLogout: cierra sesión y redirige al login
   const handleLogout = async () => {
     await signOut();
     navigate('/login');
   };
 
+  // toggleMenu: abre o cierra el menú móvil
   const toggleMenu = () => {
     setIsMenuOpen(!isMenuOpen);
   };
 
+  // Encabezado animado sticky en la parte superior
   return (
     <motion.header
       className={`sticky top-0 z-50 backdrop-blur-md transition-all duration-300 transition-colors ${
@@ -61,7 +66,7 @@ const Header: React.FC = () => {
             </NavLink>
           </div>
 
-          {/* Desktop Navigation */}
+          {/* Navegación de escritorio: enlaces a secciones y botones de tema y logout */}
           <nav className="hidden md:flex space-x-1">
             {navItems.map((item) => (
               <NavLink
@@ -95,7 +100,7 @@ const Header: React.FC = () => {
             </button>
           </nav>
 
-          {/* Mobile Menu Button */}
+          {/* Botones para mobile: alternar tema y abrir/cerrar menú */}
           <div className="md:hidden flex items-center space-x-2">
             <button
               onClick={toggleTheme}
@@ -114,7 +119,7 @@ const Header: React.FC = () => {
         </div>
       </div>
 
-      {/* Mobile Navigation */}
+      {/* Navegación móvil desplegable: enlaces y botón de logout */}
       {isMenuOpen && (
         <motion.div
           className="md:hidden bg-white dark:bg-gray-900 shadow-lg rounded-b-lg"

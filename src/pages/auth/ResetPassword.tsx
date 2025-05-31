@@ -1,4 +1,4 @@
-// Permite solicitar el reinicio de contraseña
+// Formulario de recuperación de contraseña
 
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
@@ -8,30 +8,26 @@ import { KeyRound, AlertCircle, CheckCircle2 } from 'lucide-react';
 
 const ResetPassword: React.FC = () => {
   const { resetPassword } = useAuth();
-  
+  // Estados del formulario
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
-  
+
+  // Maneja envío de recuperación
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
     if (!email) {
       setError('Por favor ingrese su dirección de correo electrónico');
       return;
     }
-    
     try {
       setLoading(true);
       setError(null);
-      
       const { error: resetError } = await resetPassword(email);
-      
       if (resetError) {
         throw new Error(resetError.message || 'Error al enviar el correo de recuperación');
       }
-      
       setSuccess(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Error al enviar el correo de recuperación');
@@ -39,7 +35,8 @@ const ResetPassword: React.FC = () => {
       setLoading(false);
     }
   };
-  
+
+  // Render del formulario
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex items-center justify-center px-4">
       <motion.div

@@ -1,4 +1,4 @@
-// Formulario para registrar un usuario
+// Formulario de registro de usuario
 
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
@@ -10,6 +10,7 @@ const Register: React.FC = () => {
   const { signUp } = useAuth();
   const navigate = useNavigate();
 
+  // Estados del formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -19,7 +20,6 @@ const Register: React.FC = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
-  // Password strength indicators
   const [passwordValidation, setPasswordValidation] = useState({
     length: false,
     uppercase: false,
@@ -28,6 +28,7 @@ const Register: React.FC = () => {
     special: false
   });
 
+  // Verifica requisitos de contraseña
   const validatePassword = (value: string) => {
     setPasswordValidation({
       length: value.length >= 6,
@@ -52,12 +53,12 @@ const Register: React.FC = () => {
     return 'bg-green-500';
   };
 
+  // Maneja envío de registro
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
     setSuccess(null);
 
-    // Validation
     if (!email || !password) {
       setError('Por favor complete todos los campos');
       return;
@@ -78,7 +79,6 @@ const Register: React.FC = () => {
       setError(null);
       setSuccess(null);
 
-
       await signUp(email, password);
       setSuccess('¡Registro exitoso! Por favor, confirmá tu correo electrónico desde el mail que te enviamos para poder iniciar sesión.');
       setLoading(false);
@@ -92,6 +92,7 @@ const Register: React.FC = () => {
     }
   };
 
+  // Render del formulario de registro
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex items-center justify-center px-4">
       <motion.div

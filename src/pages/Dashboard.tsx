@@ -1,5 +1,4 @@
-// Página principal con resúmenes y cotizaciones
-
+// Página principal del Dashboard con indicadores, gráficos y cotizaciones
 import React, { useEffect, useState } from 'react';
 import { usePortfolioData } from '../hooks/usePortfolioData';
 import { useSupabase } from '../contexts/SupabaseContext';
@@ -21,7 +20,7 @@ import {
 import { ArrowUpRight, ArrowDownRight, DollarSign, TrendingUp, ExternalLink } from 'lucide-react';
 import axios from 'axios';
 
-// Register ChartJS components
+// Registrar componentes de ChartJS para habilitar gráficos de líneas y dona
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -34,7 +33,7 @@ ChartJS.register(
   Filler
 );
 
-// Types for quotes
+// Definir tipos para cotizaciones de dólar y cripto
 interface DollarQuote {
   name: string;
   buy: number;
@@ -48,7 +47,7 @@ interface CryptoQuote {
   variation: number;
 }
 
-// Emoji icons for quotes
+// Definir emojis para representar cada tipo de cotización
 const dollarEmoji: Record<string, string> = {
   Oficial: '💵',
   Blue: '🔵',
@@ -67,23 +66,26 @@ const cryptoEmoji: Record<string, string> = {
 };
 
 const Dashboard: React.FC = () => {
+  // Obtener contexto de Supabase y usuario autenticado
   const supabase = useSupabase();
   const { user } = useAuth();
 
-  // Estado para alternar entre ARS y USD
-  const [showInARS, setShowInARS] = useState(true);
-  // Estado para dark mode
-  const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark'));
+  // Estados de visualización y preferencias
+  const [showInARS, setShowInARS] = useState(true); // Alternar entre mostrar en ARS o USD
+  const [isDarkMode, setIsDarkMode] = useState(document.documentElement.classList.contains('dark')); // Detectar modo oscuro
   useEffect(() => {
+    // Observar cambios en la clase 'dark' para actualizar isDarkMode
     const observer = new MutationObserver(() => {
       setIsDarkMode(document.documentElement.classList.contains('dark'));
     });
     observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] });
     return () => observer.disconnect();
   }, []);
-  // Filter by asset type for both summary and charts
+
+  // Filtrar por tipo de activo para resúmenes y gráficos
   const [typeFilter, setTypeFilter] = useState<'Todos' | 'Cripto' | 'CEDEAR' | 'Acción'>('Todos');
 
+  // Obtener datos y funciones del hook de portafolio
   const {
     investments,
     loading: loadingDashboard,
@@ -94,35 +96,33 @@ const Dashboard: React.FC = () => {
     cclPrice,
   } = usePortfolioData();
 
-  // Obtener resumen global filtrado según los parámetros actuales
+  // Obtener resumen global filtrado con parámetros actuales
   const resumenGlobal = getResumenDashboardFiltrado({
     typeFilter,
     merge: true,
     search: '',
     showInARS,
   });
-  const totalInvested = resumenGlobal?.invertido ?? 0;
-  const currentValue = resumenGlobal?.valorActual ?? 0;
-  const profit = resumenGlobal?.cambioTotal ?? 0;
-  const profitPercentage = totalInvested > 0 ? (profit / totalInvested) * 100 : 0;
+  const totalInvested = resumenGlobal?.invertido ?? 0; // Total invertido
+  const currentValue = resumenGlobal?.valorActual ?? 0; // Valor actual del portafolio
+  const profit = resumenGlobal?.cambioTotal ?? 0; // Ganancia o pérdida total
+  const profitPercentage = totalInvested > 0 ? (profit / totalInvested) * 100 : 0; // Porcentaje de rendimiento
 
-
-
-  // Market data states
+  // Estados de cotizaciones y carga de datos de mercado
   const [dollarQuotes, setDollarQuotes] = useState<DollarQuote[]>([]);
   const [cryptoQuotes, setCryptoQuotes] = useState<CryptoQuote[]>([]);
   const [loadingQuotes, setLoadingQuotes] = useState(true);
 
-  // Estado para inflación mensual oficial (último valor, fecha y error)
+  // Estado para inflación mensual oficial: valor, fecha y posible error
   const [lastInflation, setLastInflation] = useState<number | null>(null);
   const [lastInflationDate, setLastInflationDate] = useState<string | null>(null);
   const [inflationError, setInflationError] = useState(false);
   useEffect(() => {
+    // Obtener datos de inflación desde datos.gob.ar y actualizar estado
     const fetchInflationData = async () => {
       try {
         const response = await fetch('https://apis.datos.gob.ar/series/api/series/?metadata=full&collapse=month&ids=103.1_I2N_2016_M_19&limit=5000&representation_mode=percent_change&start=0');
         const json = await response.json();
-
         const rawData = json.data;
         if (rawData && rawData.length > 0) {
           const today = new Date();
@@ -139,7 +139,6 @@ const Dashboard: React.FC = () => {
               (a: { date: Date; value: number }, b: { date: Date; value: number }) =>
                 b.date.getTime() - a.date.getTime()
             )[0];
-
           if (recentEntry) {
             setLastInflation(recentEntry.value! * 100);
             setLastInflationDate(recentEntry.date.toISOString().split('T')[0]);
@@ -152,20 +151,19 @@ const Dashboard: React.FC = () => {
           setInflationError(true);
         }
       } catch (error) {
-        console.error('Error fetching inflación desde datos.gob.ar:', error);
+        console.error('Error al obtener inflación desde datos.gob.ar:', error);
         setInflationError(true);
       }
     };
     fetchInflationData();
   }, []);
 
-  // Portfolio distribution recalculated per type using filtered current values
+  // Recalcular distribución del portafolio por tipo usando valores actuales filtrados
   const distributionData = React.useMemo(() => {
-    // Always these three labels (renamed)
+    // Etiquetas para gráfico de dona
     const labels = ['Criptomonedas', 'CEDEARs', 'Acciones'] as const;
 
-    // Calculate current value per asset type using the hook’s filtered summary
-    // Map new labels to typeFilter values
+    // Obtener valor actual por cada tipo de activo
     const typeKeys: ('Cripto' | 'CEDEAR' | 'Acción')[] = ['Cripto', 'CEDEAR', 'Acción'];
     const values = typeKeys.map(type => {
       const r = getResumenDashboardFiltrado({
@@ -176,7 +174,6 @@ const Dashboard: React.FC = () => {
       });
       return r.valorActual || 0;
     });
-
     const total = values.reduce((sum, v) => sum + v, 0);
     const data = total === 0 ? [1, 0, 0] : values;
 
@@ -191,19 +188,18 @@ const Dashboard: React.FC = () => {
     };
   }, [getResumenDashboardFiltrado, showInARS]);
 
-  // Temporal filter state for capital evolution chart
+  // Estado temporal para filtro de rango de tiempo en evolución de capital
   const [selectedRange, setSelectedRange] = useState<'All' | '1M' | '3M' | '6M' | 'YTD' | '1Y'>('All');
 
-  // --- Capital evolution chart using real data from hook ---
+  // Datos para gráfico de evolución de capital
   const [capitalData, setCapitalData] = useState<{ labels: string[]; datasets: any[] }>({
     labels: [],
     datasets: [],
   });
 
   useEffect(() => {
-    // Obtener la evolución real del capital (array de { fecha, Cripto, CEDEAR, Accion, total })
+    // Obtener evolución del capital y aplicar filtro de rango
     const dataRaw = getCapitalEvolutionData({ showInARS }) || [];
-    // Filtrar según el rango de tiempo seleccionado
     let filteredDataRaw;
     if (selectedRange === 'All') {
       filteredDataRaw = dataRaw;
@@ -235,23 +231,23 @@ const Dashboard: React.FC = () => {
       setCapitalData({ labels: [], datasets: [] });
       return;
     }
-    // Extraer labels y series tal cual vienen del hook, sin ninguna conversión
+    // Extraer etiquetas (fechas) y series sin modificaciones
     const labels = filteredDataRaw.map(item => item.fecha);
     const seriesCripto = filteredDataRaw.map(item => item.Cripto);
     const seriesCedear = filteredDataRaw.map(item => item.CEDEAR);
-    // Usar 'Acción' como clave
     const seriesAccion = filteredDataRaw.map(item => item['Acción'] ?? item.Accion);
-    // --- Adjustment logic for ARS/USD view ---
+
+    // Lógica de ajuste para vista ARS/USD
     const cclRate = cclPrice ?? 1;
     let seriesCriptoAdjusted = seriesCripto;
     let seriesCedearAdjusted = seriesCedear;
     let seriesAccionAdjusted = seriesAccion;
     if (showInARS) {
-      // In ARS view, only actions and CEDEAR are multiplied by CCL
+      // En ARS, multiplicar CEDEAR y Acción por CCL
       seriesCedearAdjusted = seriesCedear.map(val => val / cclRate);
       seriesAccionAdjusted = seriesAccion.map(val => val / cclRate);
     } else {
-      // In USD view, only crypto is divided by CCL
+      // En USD, dividir Cripto por CCL
       seriesCedearAdjusted = seriesCedear.map(val => val / cclRate);
       seriesAccionAdjusted = seriesAccion.map(val => val / cclRate);
     }
@@ -259,14 +255,14 @@ const Dashboard: React.FC = () => {
       seriesCriptoAdjusted[idx] + seriesCedearAdjusted[idx] + seriesAccionAdjusted[idx]
     );
 
-    // Colores por tipo de activo
+    // Definir colores para cada tipo de activo
     const colorMap = {
       Cripto: { bg: 'rgba(249, 115, 22, 0.2)', border: '#F97316' },
       CEDEAR: { bg: 'rgba(168, 85, 247, 0.2)', border: '#A855F7' },
       Acción: { bg: 'rgba(14, 165, 233, 0.2)', border: '#0EA5E9' },
     };
 
-    // Construir datasets, filtrar por typeFilter si corresponde
+    // Construir datasets filtrando por typeFilter
     let datasets;
     if (typeFilter === 'Todos') {
       datasets = [
@@ -336,14 +332,13 @@ const Dashboard: React.FC = () => {
     isDarkMode,
   ]);
 
-
-  // Fetch market data
+  // Obtener datos de mercado: cotizaciones de dólar y cripto
   useEffect(() => {
     const fetchMarketData = async () => {
       try {
         setLoadingQuotes(true);
 
-        // Fetch dollar quotes - unificado
+        // Obtener cotizaciones del dólar - unificado
         try {
           const response = await axios.get('https://dolarapi.com/v1/ambito/dolares');
           const quotes: DollarQuote[] = response.data.map((item: any) => {
@@ -362,7 +357,7 @@ const Dashboard: React.FC = () => {
           setDollarQuotes([]);
         }
 
-        // Fetch crypto quotes
+        // Obtener cotizaciones de criptomonedas
         try {
           const res = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=ars,usd&include_24hr_change=true');
           const data = res.data;
@@ -378,21 +373,19 @@ const Dashboard: React.FC = () => {
           setCryptoQuotes([]);
         }
       } catch (error) {
-        console.error('Error fetching market data:', error);
+        console.error('Error al obtener datos de mercado:', error);
       } finally {
         setLoadingQuotes(false);
       }
     };
 
+    // Llamar a la función e iniciar intervalo de refresco cada 5 minutos
     fetchMarketData();
-
-    // Refresh market data every 5 minutes
     const refreshInterval = setInterval(fetchMarketData, 5 * 60 * 1000);
-
     return () => clearInterval(refreshInterval);
   }, []);
 
-  // Line chart options
+  // Opciones para gráfico de líneas (evolución de capital)
   const lineOptions = {
     responsive: true,
     plugins: {
@@ -400,10 +393,10 @@ const Dashboard: React.FC = () => {
         display: false,
       },
       tooltip: {
-        mode: 'index',
+        mode: 'index' as const,
         intersect: false,
         callbacks: {
-          label: function(context) {
+          label: function(context: any) {
             const label = context.dataset.label || '';
             const value = context.parsed.y ?? context.raw;
             return showInARS
@@ -417,7 +410,7 @@ const Dashboard: React.FC = () => {
       y: {
         beginAtZero: false,
         ticks: {
-          callback: function(value) {
+          callback: function(value: number) {
             return showInARS
               ? value.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })
               : value.toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -432,9 +425,9 @@ const Dashboard: React.FC = () => {
     }
   };
 
-  // ---- PATCHED getCapitalEvolutionData to use "Acción" consistently ----
-  // (If you move this function, keep the patch below)
-  // Doughnut chart options
+  // PARCHADO getCapitalEvolutionData para usar "Acción" de forma consistente
+  // (Si se mueve esta función, mantener este parche)
+  // Opciones para gráfico de dona (distribución de portafolio)
   const doughnutOptions = {
     responsive: true,
     plugins: {
@@ -456,7 +449,7 @@ const Dashboard: React.FC = () => {
     cutout: '70%',
   };
 
-  // Format numbers as ARS currency
+  // Formatear números como ARS
   const formatARS = (value: number) => {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -465,7 +458,7 @@ const Dashboard: React.FC = () => {
     }).format(value);
   };
 
-  // Format numbers as USD currency
+  // Formatear números como USD
   const formatUSD = (value: number) => {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -474,10 +467,9 @@ const Dashboard: React.FC = () => {
     }).format(value);
   };
 
-
-
   return (
     <div className="space-y-6">
+      {/* Encabezado del Dashboard con título y subtítulo */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -490,10 +482,10 @@ const Dashboard: React.FC = () => {
       </motion.div>
 
       {/*
-        Main indicators
-        Todos los KPIs principales (Total Invertido, Valor Actual, Ganancia/Pérdida, Rendimiento)
-        usan exclusivamente los valores de resumenGlobal del hook.
-        El botón ARS/USD solo cambia el formato visual, no la lógica ni el campo de origen.
+        Indicadores principales
+        Mostrar total invertido, valor actual, ganancia/pérdida y rendimiento
+        usando exclusivamente valores de resumenGlobal del hook.
+        Botón ARS/USD cambia solo el formato visual, no la lógica ni el origen.
       */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Total Invertido */}
@@ -621,7 +613,7 @@ const Dashboard: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* Dashboard error handling */}
+      {/* Mostrar mensaje de error si ocurre al cargar datos del Dashboard */}
       {dashboardError && (
         <div className="bg-red-100 text-red-700 px-4 py-3 rounded mt-4">
           Error cargando datos del dashboard: {dashboardError.message || dashboardError.toString()}
@@ -629,14 +621,14 @@ const Dashboard: React.FC = () => {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Capital Evolution */}
+        {/* Evolución del Capital con gráfico de líneas */}
         <motion.div
           className="lg:col-span-2 bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, scale: 0.95 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.4 }}
         >
-          {/* Temporal filters removed: Desde/Hasta */}
+          {/* Seleccionar rango de tiempo para el gráfico */}
           <div className="mb-4 flex flex-wrap justify-between items-center gap-4">
             <h2 className="text-lg font-semibold text-gray-800 dark:text-gray-100">Evolución del Capital</h2>
             <div className="flex gap-2 text-sm">
@@ -658,7 +650,7 @@ const Dashboard: React.FC = () => {
           <div className="min-h-[18rem] sm:min-h-[20rem] md:min-h-[22rem]">
             <Line data={capitalData} options={lineOptions} />
           </div>
-          {/* Below the line chart: interactive legend buttons */}
+          {/* Leyenda interactiva para filtrar tipo de activo */}
           <div className="mt-4 flex items-center justify-center gap-4 text-sm">
             {['Todos','Acción','CEDEAR','Cripto'].map(label => {
               let display = label === 'Acción' ? 'Acciones'
@@ -697,7 +689,7 @@ const Dashboard: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Portfolio Distribution */}
+        {/* Distribución del Portafolio con gráfico de dona */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, scale: 0.95 }}
@@ -724,7 +716,7 @@ const Dashboard: React.FC = () => {
                 <Doughnut data={distributionData} options={doughnutOptions} />
               </div>
             </div>
-            {/* Custom legend */}
+            {/* Leyenda personalizada para mostrar porcentaje por tipo */}
             <div className="mt-6 text-sm text-gray-700 dark:text-gray-300">
               <ul className="flex flex-col items-center gap-2">
                 {distributionData.labels.map((label, i) => {
@@ -749,9 +741,9 @@ const Dashboard: React.FC = () => {
         </motion.div>
       </div>
 
-      {/* Market Data */}
+      {/* Datos de mercado: cotizaciones de dólar y cripto */}
       <div className="grid grid-cols-1 gap-6">
-        {/* Dollar Quotes */}
+        {/* Cotizaciones del Dólar */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, y: 20 }}
@@ -768,36 +760,33 @@ const Dashboard: React.FC = () => {
               <ExternalLink size={14} strokeWidth={1.5} />
             </a>
           </div>
-
           {loadingQuotes ? (
             <div className="text-center py-10">
               <p className="text-gray-500 dark:text-gray-400">Cargando datos...</p>
             </div>
           ) : dollarQuotes.length > 0 ? (
-            <>
-              <div className="grid grid-cols-7 gap-3 justify-center">
-                {dollarQuotes.map((quote, index) => (
-                  <div
-                    key={index}
-                    className="w-full bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2"
-                  >
-                    <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-center">
-                      {dollarEmoji[quote.name] || ''} {quote.name}
-                    </h3>
-                    <div className="grid grid-cols-2 gap-4 justify-items-center">
-                      <div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">Venta</div>
-                        <div className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.sell)}</div>
-                      </div>
-                      <div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 text-center">Compra</div>
-                        <div className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.buy)}</div>
-                      </div>
+            <div className="grid grid-cols-7 gap-3 justify-center">
+              {dollarQuotes.map((quote, index) => (
+                <div
+                  key={index}
+                  className="w-full bg-gray-50 dark:bg-gray-700 rounded-lg p-4 space-y-2"
+                >
+                  <h3 className="font-semibold text-gray-800 dark:text-gray-100 text-center">
+                    {dollarEmoji[quote.name] || ''} {quote.name}
+                  </h3>
+                  <div className="grid grid-cols-2 gap-4 justify-items-center">
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 text-center">Venta</div>
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.sell)}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400 text-center">Compra</div>
+                      <div className="font-medium text-gray-800 dark:text-gray-100">{formatARS(quote.buy)}</div>
                     </div>
                   </div>
-                ))}
-              </div>
-            </>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="text-center py-10">
               <p className="text-gray-500 dark:text-gray-400">No hay datos disponibles</p>
@@ -805,7 +794,7 @@ const Dashboard: React.FC = () => {
           )}
         </motion.div>
 
-        {/* Crypto Quotes */}
+        {/* Cotizaciones Cripto */}
         <motion.div
           className="bg-white dark:bg-gray-800 bg-opacity-80 backdrop-blur-sm rounded-xl shadow-sm p-5 border border-gray-100 dark:border-gray-700"
           initial={{ opacity: 0, y: 20 }}
@@ -822,7 +811,6 @@ const Dashboard: React.FC = () => {
               <ExternalLink size={14} strokeWidth={1.5} />
             </a>
           </div>
-
           {loadingQuotes ? (
             <div className="text-center py-10">
               <p className="text-gray-500 dark:text-gray-400">Cargando datos...</p>
@@ -840,7 +828,7 @@ const Dashboard: React.FC = () => {
                       {cryptoEmoji[quote.name] || ''} {quote.name}
                     </h3>
                     <div className="text-xs text-gray-500 dark:text-gray-400 mb-2 text-center">
-                      {['USDT','USDC'].includes(quote.name) ? 'Stablecoin' : 'Cryptocurrency'}
+                      {['USDT','USDC'].includes(quote.name) ? 'Moneda estable' : 'Criptomoneda'}
                     </div>
                     <div className="grid grid-cols-2 gap-4 justify-items-center">
                       <div>
@@ -860,7 +848,7 @@ const Dashboard: React.FC = () => {
                     </div>
                   </div>
                 ))}
-              {/* Inflación mensual simplificada y centrada */}
+              {/* Mostrar inflación mensual */}
               <div className="bg-gray-100 dark:bg-gray-700 rounded-lg p-6 space-y-2 border-l-4 border-orange-400 text-center">
                 <h3 className="text-sm font-medium text-gray-800 dark:text-gray-100">
                   {cryptoEmoji['Inflación']} Inflación mensual

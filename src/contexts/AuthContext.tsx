@@ -35,15 +35,16 @@ const AuthContext = createContext<AuthContextType>({
 
 export const useAuth = () => useContext(AuthContext);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ 
-  children 
+// AuthProvider: maneja autenticación global con Supabase (login, registro, logout, reset password)
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
+  children
 }) => {
   const supabase = useSupabase();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Check if there's an active session
+    // Obtiene el usuario actual y escucha cambios en la sesión de autenticación.
     const getUser = async () => {
       const { data } = await supabase.auth.getUser();
       setUser(data.user);
@@ -52,7 +53,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
 
     getUser();
 
-    // Set up a subscription to user changes
+    // Configura una suscripción para actualizar el usuario cuando cambia la sesión.
     const { data } = supabase.auth.onAuthStateChange((_event, session) => {
       if (session?.user) {
         setUser(session.user);
@@ -67,19 +68,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     };
   }, [supabase]);
 
+  // Inicia sesión con email y contraseña.
   const signIn = async (email: string, password: string) => {
     return await supabase.auth.signInWithPassword({ email, password });
   };
 
+  // Registra un nuevo usuario con email y contraseña.
   const signUp = async (email: string, password: string) => {
     return await supabase.auth.signUp({ email, password });
   };
 
+  // Cierra la sesión del usuario actual.
   const signOut = async () => {
     await supabase.auth.signOut();
     setUser(null);
   };
 
+  // Envía un correo para restablecer la contraseña.
   const resetPassword = async (email: string) => {
     return await supabase.auth.resetPasswordForEmail(email);
   };

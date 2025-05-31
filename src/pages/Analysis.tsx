@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// Emoji icons for quotes
+// Iconos de emoji para cotizaciones
 const dollarEmoji: Record<string, string> = {
   'USD Oficial': '💵',
   'USD Blue': '🔵',
@@ -25,7 +25,7 @@ import {
 import { DollarSign, Bitcoin, Wallet, ArrowUpRight, ArrowDownRight, Loader, TrendingUp, AlertCircle } from 'lucide-react';
 import axios from 'axios';
 
-// Register ChartJS components
+// Registrar componentes de ChartJS
 ChartJS.register(
   CategoryScale,
   LinearScale,
@@ -49,7 +49,7 @@ interface Quote {
 }
 
 
-// Mapa de íconos para bancos y billeteras (usando claves slugificadas)
+// Mapa de íconos para bancos y billeteras
 const quoteIconMap: Record<string, string> = {
   'banco-comafi': '/icons/banco-comafi.svg',
   'banco-galicia': '/icons/banco-galicia.svg',
@@ -90,32 +90,31 @@ const quoteIconMap: Record<string, string> = {
 
 const Analysis: React.FC = () => {
 
-  // Active section states
+  // Establecer sección principal y sección de cotizaciones activa
   const [activeMainSection, setActiveMainSection] = useState<'quotes' | 'rates'>('quotes');
   const [activeQuoteSection, setActiveQuoteSection] = useState<'dollar' | 'crypto' | 'pix'>('dollar');
 
-  // Data states
+  // Estados de datos
   const [dollarQuotes, setDollarQuotes] = useState<Quote[]>([]);
   const [cryptoQuotes, setCryptoQuotes] = useState<Quote[]>([]);
   const [pixQuotes, setPixQuotes] = useState<Quote[]>([]);
 
-  // Loading and error states
+  // Estados de carga y error
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Dollar visual filter logic: selectedCurrency and filteredDollarQuotes
+  // Filtrar visual de Dólar: selectedCurrency y filteredDollarQuotes
   const [selectedCurrency, setSelectedCurrency] = useState<'USD' | 'Bancos' | 'Alternativos' | 'Billeteras Virtuales'>('USD');
-  // Ordenamiento global de cotizaciones
+  // Ordenar las cotizaciones según opción seleccionada
   const [sortOption, setSortOption] = useState<'alphabeticalAsc' | 'alphabeticalDesc' | 'buyAsc' | 'buyDesc' | 'sellAsc' | 'sellDesc'>('alphabeticalAsc');
-  // Cripto visual filter logic: selectedToken
+  // Filtrar visual de Cripto: selectedToken
   const [selectedToken, setSelectedToken] = useState<string | null>(null);
-  // PIX visual filter logic: selectedPixSymbol
+  // Filtrar visual de PIX: selectedPixSymbol
   const [selectedPixSymbol, setSelectedPixSymbol] = useState<'ARS' | 'USD'>('ARS');
-  // Filtro para cotizaciones de dólar según selección visual
+  // Filtrar las cotizaciones de dólar según lo que el usuario elija (oficial, bancos o billeteras)
   const filteredDollarQuotes = (() => {
     let filtered = dollarQuotes.filter(({ name }) => {
       if (selectedCurrency === 'USD') {
-        // Solo USD Oficial, USD Blue, USD Bolsa, USD CCL, USD Tarjeta, USD Mayorista
         return (
           name.toLowerCase().includes('oficial') ||
           name.toLowerCase().includes('blue') ||
@@ -127,7 +126,6 @@ const Analysis: React.FC = () => {
         );
       }
       if (selectedCurrency === 'Bancos') {
-        // Bancos tradicionales
         return (
           name.toLowerCase().includes('banco') ||
           name.toLowerCase().includes('nacion') ||
@@ -140,7 +138,6 @@ const Analysis: React.FC = () => {
         );
       }
       if (selectedCurrency === 'Billeteras Virtuales') {
-        // Alternativos: billeteras, exchanges, fintechs
         return (
           name.toLowerCase().includes('bit') ||
           name.toLowerCase().includes('fiwind') ||
@@ -165,7 +162,7 @@ const Analysis: React.FC = () => {
     return filtered;
   })();
 
-  // Fetch dollar quotes: combina DolarAPI y ComparaDolar
+  // Obtener cotizaciones del dólar desde dos fuentes y combinarlas
   useEffect(() => {
     const fetchDollarQuotes = async () => {
       try {
@@ -191,7 +188,6 @@ const Analysis: React.FC = () => {
 
         const oficialQuotes = Array.isArray(dolarApiRes.data)
           ? dolarApiRes.data
-              // No filtrar 'tarjeta', incluir todos
               .map((q: any) => {
                 // Formato explícito para el nombre
                 let usdName = '';
@@ -246,7 +242,7 @@ const Analysis: React.FC = () => {
         ];
         setDollarQuotes(combinedQuotes);
       } catch (error) {
-        console.error('Error fetching dollar quotes:', error);
+        console.error('Error al obtener cotizaciones del dólar:', error);
         setError('Error al cargar cotizaciones del dólar');
       } finally {
         setLoading(false);
@@ -260,7 +256,7 @@ const Analysis: React.FC = () => {
     }
   }, [activeMainSection, activeQuoteSection]);
 
-  // Fetch crypto quotes
+  // Obtener cotizaciones de criptomonedas y ordenarlas
   useEffect(() => {
     const fetchCryptoQuotes = async () => {
       try {
@@ -271,7 +267,7 @@ const Analysis: React.FC = () => {
           tokens.map(token =>
             axios.get(`https://api.comparadolar.ar/crypto/${token}`)
               .catch(err => {
-                console.error(`Error fetching ${token}:`, err);
+                console.error(`Error al obtener ${token}:`, err);
                 return { data: null };
               })
           )
@@ -309,7 +305,7 @@ const Analysis: React.FC = () => {
 
         setCryptoQuotes(sortedQuotes);
       } catch (error) {
-        console.error('Error fetching crypto quotes:', error);
+        console.error('Error al obtener cotizaciones de criptomonedas:', error);
         setError('Error al cargar cotizaciones de criptomonedas');
       } finally {
         setLoading(false);
@@ -323,7 +319,7 @@ const Analysis: React.FC = () => {
     }
   }, [activeMainSection, activeQuoteSection]);
 
-  // Fetch PIX quotes from pix.ferminrp.com API
+  // Obtener cotizaciones de PIX y prepararlas para mostrar
   useEffect(() => {
     const fetchPixQuotes = async () => {
       try {
@@ -366,12 +362,12 @@ const Analysis: React.FC = () => {
             }
           });
 
-          // Separate ARS and USD quotes
+          // Separar cotizaciones ARS y USD
           const arsQuotes = formattedQuotes.filter(q => q.currencyType === 'ARS');
           const usdQuotes = formattedQuotes.filter(q => q.currencyType === 'USD');
           const sortedQuotes = [...arsQuotes, ...usdQuotes];
 
-          // Set default selectedPixSymbol to 'ARS' or 'USD' if available
+          // Establecer selectedPixSymbol por defecto en 'ARS' o 'USD' si está disponible
           if (arsQuotes.length > 0) {
             setSelectedPixSymbol('ARS');
           } else if (usdQuotes.length > 0) {
@@ -380,13 +376,13 @@ const Analysis: React.FC = () => {
             setSelectedPixSymbol(null);
           }
 
-          // Remove currencyType before setting state (keep Quote type)
+          // Eliminar currencyType antes de establecer estado (mantener tipo Quote)
           setPixQuotes(sortedQuotes.map(({currencyType, ...rest}) => rest));
         } else {
           setPixQuotes([]);
         }
       } catch (error) {
-        console.error('Error fetching PIX quotes:', error);
+        console.error('Error al obtener cotizaciones de PIX:', error);
         setError('No se pudieron cargar las cotizaciones de PIX. Por favor, intente más tarde.');
         setPixQuotes([]);
       }
@@ -400,7 +396,7 @@ const Analysis: React.FC = () => {
   }, [activeMainSection, activeQuoteSection]);
 
 
-  // Format currency
+  // Convierte un número a formato de moneda local
   const formatCurrency = (value: number, currency: string = 'ARS') => {
     return new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -409,7 +405,7 @@ const Analysis: React.FC = () => {
     }).format(value);
   };
 
-  // Ordenar cotizaciones según opción seleccionada
+  // Ordena las cotizaciones según la opción que haya seleccionado el usuario
   const sortQuotes = (quotes: Quote[]) => {
     return quotes.slice().sort((a, b) => {
       if (sortOption === 'alphabeticalAsc') return a.name.localeCompare(b.name);
@@ -422,7 +418,7 @@ const Analysis: React.FC = () => {
     });
   };
 
-  // Mejor cotización PIX para pagar
+  // Identificar mejores cotizaciones PIX para pagar
   const bestPixQuote = pixQuotes
     .filter(q => selectedPixSymbol ? q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`) : true)
     .reduce((best, current) => {
@@ -442,7 +438,7 @@ const Analysis: React.FC = () => {
       return best;
     }, null as Quote | null);
 
-  // Main section tabs (with "Rendimientos" button)
+  // Pestañas principales: cambia entre Cotizaciones y Rendimientos
   const MainSectionTabs = () => (
     <div className="flex space-x-2 mb-0">
       <button
@@ -470,7 +466,7 @@ const Analysis: React.FC = () => {
     </div>
   );
 
-  // Quote sections navigation
+  // Botones para elegir entre Dólar, Cripto y PIX
   const QuoteSectionsNav = () => (
     <div className="flex space-x-2 mb-2">
       <button
@@ -510,9 +506,9 @@ const Analysis: React.FC = () => {
   );
 
 
-  // Quote card component
+  // Componente que muestra cada tarjeta de cotización
   const QuoteCard = ({ quote }: { quote: Quote }) => {
-    // Special handling for PIX USD cards: invert the rate shown (1 / buy)
+    // Ajuste especial para mostrar la cotización PIX en USD
     let isPixUsd = activeQuoteSection === 'pix' && selectedPixSymbol === 'USD';
     let displayLabel = activeQuoteSection === 'pix' ? 'Pagar 1 Real es' : 'Venta';
     let displayValue: number | null | undefined = quote.buy;
@@ -623,7 +619,7 @@ return (
             </h3>
           </div>
 
-          {/* Barra superior de actualización y última actualización alineada con filtros */}
+          {/* Mostrar filtro y última actualización */}
           <div className="flex justify-between items-center mb-4">
             {/* Filtros visuales según sección */}
             {activeQuoteSection === 'dollar' && (
@@ -661,7 +657,7 @@ return (
               </div>
             )}
             {activeQuoteSection === 'pix' && (() => {
-              // The only valid symbols are 'ARS' and 'USD'
+              // Símbolos válidos: 'ARS' y 'USD'
               const uniquePixSymbols = ['ARS', 'USD'].filter(symbol => pixQuotes.some(q => q.name.includes(`paga con ${symbol}`)));
               return (
                 <div className="flex space-x-2">
@@ -716,7 +712,7 @@ return (
             </div>
           </div>
 
-          {/* Mejores precios para cripto con token seleccionado o dólar con Bancos/Billeteras */}
+          {/*Mejores precios para cripto con token seleccionado o dólar con Bancos/Billeteras */}
           {((activeQuoteSection === 'crypto' && selectedToken) ||
             (activeQuoteSection === 'dollar' && (selectedCurrency === 'Bancos' || selectedCurrency === 'Billeteras Virtuales'))) && (() => {
             let quotes: Quote[] = [];
@@ -775,7 +771,7 @@ return (
             </div>
           ) : (
             <>
-              {/* Dólar visual filter */}
+              {/* Filtro visual de Dólar */}
               {activeQuoteSection === 'dollar' && (
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {sortQuotes(filteredDollarQuotes).map((quote, index) => (
@@ -787,7 +783,7 @@ return (
               {activeQuoteSection === 'crypto' && (
                 <>
                   {(() => {
-                    // Agrupa las cotizaciones por token (extraído del nombre)
+                    {/* Agrupar cotizaciones de cripto por token para mostrarlas juntas */}
                     const groupedCryptoQuotes = cryptoQuotes.reduce((acc: { [token: string]: Quote[] }, quote) => {
                       const match = quote.name.match(/\(([^)]+)\)$/);
                       const token = match?.[1] || 'OTROS';
@@ -813,12 +809,12 @@ return (
                           ))}
                       </>
                     );
-                  })()}
+              })()}
                 </>
               )}
               {activeQuoteSection === 'pix' && (
                 <>
-                  {/* Compute filteredBySymbol, bestQuote, tarjetaMepQuote, tarjetaQuote */}
+                  {/* Calcular mejores opciones de PIX */}
                   {(() => {
                     const filteredBySymbol = pixQuotes.filter(q =>
                       selectedPixSymbol ? q.name.toLowerCase().includes(`paga con ${selectedPixSymbol.toLowerCase()}`) : true
@@ -833,7 +829,7 @@ return (
                         {bestQuote && (
                           <div className="rounded-xl shadow-sm p-6 border border-teal-100 bg-teal-50 dark:border-teal-700 dark:bg-teal-800 text-teal-700 dark:text-teal-200">
                             <p className="text-base">
-                              <strong>Mejor App:</strong> {bestQuote.name.split('—')[0].trim()} – <strong>
+                              <strong>Mejor App:</strong> {bestQuote.name.split('—')[0].trim()}  <strong>
                                 {selectedPixSymbol === 'USD' && bestQuote.buy
                                   ? (1 / bestQuote.buy).toFixed(2) + ' R$'
                                   : formatCurrency(bestQuote.buy ?? 0)
@@ -869,7 +865,7 @@ return (
                       </div>
                     );
                   })()}
-                  {/* Grid of PIX quotes excluding tarjeta items */}
+                  {/* Lista de cotizaciones PIX (excepto las de tarjeta) */}
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {sortQuotes(
                       pixQuotes

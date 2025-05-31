@@ -1,6 +1,11 @@
-import { supabase } from './supabase'; // Cliente configurado de Supabase
 
-// Obtiene el perfil del usuario autenticado o lo crea si no existe
+/**
+ * Obtiene el perfil del usuario autenticado desde Supabase o lo crea si no existe.
+ * - Si el perfil ya está registrado, lo retorna directamente.
+ * - Si no existe, crea un nuevo perfil con valores por defecto.
+ * - Lanza errores en caso de fallo en la autenticación o consultas.
+ */
+import { supabase } from './supabase'; // Cliente configurado de Supabase
 export async function getOrCreateUserProfile() {
     const { data: { user }, error: userError } = await supabase.auth.getUser();
     if (userError || !user) throw userError ?? new Error("No user authenticated");

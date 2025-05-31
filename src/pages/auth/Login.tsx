@@ -9,13 +9,15 @@ import {LogIn, AlertCircle, EyeOff, Eye} from 'lucide-react';
 const Login: React.FC = () => {
   const { signIn } = useAuth();
   const navigate = useNavigate();
-  
+
+  // Estados principales del formulario
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Maneja el envío del formulario
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -43,6 +45,7 @@ const Login: React.FC = () => {
     }
   };
 
+  // Render del formulario
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-950 flex items-center justify-center px-4">
       <motion.div

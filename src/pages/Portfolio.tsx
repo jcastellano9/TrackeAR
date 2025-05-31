@@ -28,7 +28,9 @@ interface NewInvestment {
 }
 
 
+// Componente Portfolio: maneja estado y renderiza la interfaz de cartera de inversiones
 const Portfolio: React.FC = () => {
+  // useState: definiciones de estados para búsqueda, filtros, modales, precios, etc.
   const {
     investments,
     loading,
@@ -42,25 +44,21 @@ const Portfolio: React.FC = () => {
     updateInvestment,
     deleteInvestment,
     toggleFavorite,
-    handleAssetSelect, // 👈 agregar esto
-    success,           // ✅ Add this
-    setSuccess,        // ✅ And this
-    exportToCSV,        // ← add this line
-    getResumenGlobalFiltrado, // <-- import from usePortfolioData
-    ppcMap              // <-- get ppcMap from the hook
+    handleAssetSelect,
+    success,
+    setSuccess,
+    exportToCSV,
+    getResumenGlobalFiltrado,
+    ppcMap
   } = usePortfolioData();
   const [searchTerm, setSearchTerm] = useState('');
   const [showAddModal, setShowAddModal] = useState(false);
   const [assetSearchTerm, setAssetSearchTerm] = useState('');
-  // Nuevo estado para filtro por tipo de activo
   const [activeTypeFilter, setActiveTypeFilter] = useState<'Todos' | 'CEDEAR' | 'Cripto' | 'Acción'>('Todos');
-  // Estado para unificar transacciones repetidas
   const [mergeTransactions, setMergeTransactions] = useState(true);
-  // Estado para alternar visualización entre ARS y USD
   const [showInARS, setShowInARS] = useState(true);
-  // Estado para orden de la tabla (ascendente/descendente por criterio)
   const [sortBy, setSortBy] = useState<
-    'favoritosFechaDesc' |                    // 💖 nuevo orden por defecto
+    'favoritosFechaDesc' |
     'tickerAZ' | 'tickerZA' |
     'gananciaPorcentajeAsc' | 'gananciaPorcentajeDesc' |
     'gananciaValorAsc' | 'gananciaValorDesc' |
@@ -68,14 +66,11 @@ const Portfolio: React.FC = () => {
     'fechaAsc' | 'fechaDesc'
   >('favoritosFechaDesc');
 
-  // Estado para edición de inversión
   const [editId, setEditId] = useState<string | null>(null);
 
-  // Estado para activo seleccionado y precio actual en el modal de agregar inversión
   const [selectedAsset, setSelectedAsset] = useState<any>(null);
   const [_currentPrice, _setCurrentPrice] = useState<number | null>(null);
 
-  // New investment form state
   const [newInvestment, setNewInvestment] = useState<NewInvestment>({
     ticker: '',
     name: '',
@@ -96,7 +91,7 @@ const Portfolio: React.FC = () => {
   );
 
 
-  // Lógica corregida: conversión diferenciada para Cripto, Acción, CEDEAR y contexto ARS/USD
+  // calculateReturn: Calcula ganancia/pérdida ajustando por tipo y moneda
   const calculateReturn = (
     current: number,
     purchase: number,
@@ -112,14 +107,12 @@ const Portfolio: React.FC = () => {
     let adjustedCurrent = current;
     let adjustedPurchase = purchase;
 
-    // Para Cripto: si la vista es ARS, multiplicar ambos por CCL
     if (type === 'Cripto') {
       if (showInARS && cclPrice) {
         adjustedCurrent = current * cclPrice;
         adjustedPurchase = purchase * cclPrice;
       }
     }
-    // Para Acción o CEDEAR: lógica diferenciada para ARS/USD (corregida para evitar conversión errónea)
     else if ((type === 'Acción' || type === 'CEDEAR')) {
       if (currency === 'USD' && showInARS && cclPrice) {
         adjustedCurrent = current * cclPrice;
@@ -138,7 +131,7 @@ const Portfolio: React.FC = () => {
     };
   };
 
-  // Nueva función para obtener el precio ajustado según la visualización
+  // getAdjustedPrice: Ajusta precio actual según tipo de inversión y moneda
   const getAdjustedPrice = (inv: Investment): number => {
     const key = getAssetKey(inv);
     let price = marketPrices[key] ?? inv.purchasePrice;
@@ -149,7 +142,6 @@ const Portfolio: React.FC = () => {
       }
     } else if (inv.type === 'CEDEAR' || inv.type === 'Acción') {
       if (inv.currency === 'USD' && showInARS && cclPrice) {
-        // ya viene en ARS
       } else if (inv.currency === 'ARS' && !showInARS && cclPrice) {
         price = price / cclPrice;
       } else if (inv.currency === 'USD' && !showInARS && cclPrice) {
@@ -160,9 +152,8 @@ const Portfolio: React.FC = () => {
     return price;
   };
 
-  // Obtiene el PPC (purchase price) ajustado a la misma moneda/vista que el precio actual
+  // getAdjustedPpc: Ajusta PPC según tipo de inversión, moneda y fusión de transacciones
   const getAdjustedPpc = (inv: Investment): number => {
-    // PPC por unidad: usa promedio ponderado si merge está activo
     const ppcKey = getNormalizedPpcKey(inv);
     let ppcUnit = mergeTransactions
       ? ppcMap[ppcKey] ?? inv.purchasePrice
@@ -182,7 +173,7 @@ const Portfolio: React.FC = () => {
     return ppcUnit;
   };
 
-  // Ordenar inversiones según sortBy (la lógica de orden se aplica después del merge)
+  // Filtra inversiones por término de búsqueda y tipo
   const filteredInvestments = (investments ?? [])
     .filter(investment =>
       investment.ticker &&
@@ -193,7 +184,7 @@ const Portfolio: React.FC = () => {
         investment.name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
 
-  // Agrupamiento de inversiones si mergeTransactions está activo
+  // Agrupa transacciones idénticas si mergeTransactions es true
   const displayedInvestments = mergeTransactions
     ? Object.values(
         filteredInvestments.reduce((acc, inv) => {
@@ -203,7 +194,6 @@ const Portfolio: React.FC = () => {
           } else {
             const prevQty = acc[key].quantity;
             const newQty = prevQty + inv.quantity;
-            // PPC ponderado
             acc[key].purchasePrice =
               (acc[key].purchasePrice * prevQty + inv.purchasePrice * inv.quantity) / newQty;
             acc[key].quantity = newQty;
@@ -214,25 +204,23 @@ const Portfolio: React.FC = () => {
       )
     : filteredInvestments;
 
+  // getChangeAmt: Calcula cambio absoluto (precio ajustado - PPC) * cantidad
   const getChangeAmt = (inv: Investment): number => {
     const priceUnit = getAdjustedPrice(inv);
     const ppcUnit   = getAdjustedPpc(inv);
     return (priceUnit - ppcUnit) * inv.quantity;
   };
-  // --- ORDEN FINAL ---
+  // sortedInvestments: Ordena inversiones según criterio seleccionado
   const sortedInvestments = [...displayedInvestments].sort((a, b) => {
-    // 1) Favoritos + fecha (por defecto)
     if (sortBy === 'favoritosFechaDesc') {
       const favDiff = (b.isFavorite ? 1 : 0) - (a.isFavorite ? 1 : 0);
       if (favDiff !== 0) return favDiff;
       return new Date(b.purchaseDate).getTime() - new Date(a.purchaseDate).getTime();
     }
 
-    // 2) Ticker
     if (sortBy === 'tickerAZ') return a.ticker.localeCompare(b.ticker);
     if (sortBy === 'tickerZA') return b.ticker.localeCompare(a.ticker);
 
-    // 3) Ganancia %
     const getPct = (inv: Investment) => {
       const pct = calculateReturn(
         getAdjustedPrice(inv),
@@ -247,16 +235,13 @@ const Portfolio: React.FC = () => {
     if (sortBy === 'gananciaPorcentajeAsc')  return getPct(a) - getPct(b);
     if (sortBy === 'gananciaPorcentajeDesc') return getPct(b) - getPct(a);
 
-    // 4) Ganancia $
     if (sortBy === 'gananciaValorAsc')  return getChangeAmt(a) - getChangeAmt(b);
     if (sortBy === 'gananciaValorDesc') return getChangeAmt(b) - getChangeAmt(a);
 
-    // 5) Tenencia
     const getTen = (inv: Investment) => getAdjustedPrice(inv) * inv.quantity;
     if (sortBy === 'tenenciaAsc')  return getTen(a) - getTen(b);
     if (sortBy === 'tenenciaDesc') return getTen(b) - getTen(a);
 
-    // 6) Fecha pura
     const dateDiff = new Date(a.purchaseDate).getTime() - new Date(b.purchaseDate).getTime();
     if (sortBy === 'fechaAsc')  return dateDiff;
     if (sortBy === 'fechaDesc') return -dateDiff;
@@ -265,6 +250,7 @@ const Portfolio: React.FC = () => {
   });
 
 
+  // formatCurrency: Formatea valor en ARS o USD con localización 'es-AR'
   const formatCurrency = (value: number, currency: 'USD' | 'ARS' = 'ARS') => {
     const formatter = new Intl.NumberFormat('es-AR', {
       style: 'currency',
@@ -279,19 +265,18 @@ const Portfolio: React.FC = () => {
 
   const totalCurrencyToShow = showInARS ? 'ARS' : 'USD';
 
+  // useEffect: Captura errores globales y los registra en consola
   useEffect(() => {
     window.onerror = function (message, source, lineno, colno, error) {
       console.error("Global Error:", { message, source, lineno, colno, error });
     };
   }, []);
 
-
-
-  // console.log("Portfolio renderizado");
+  // Mostrar estados de carga y error antes de renderizar el contenido principal
   if (loading) return <div className="text-center py-10">Cargando inversiones…</div>;
   if (fetchError) return <div className="text-center py-10 text-red-500">Error al cargar inversiones: {fetchError}</div>;
 
-  // Calcular total de tenencias para asignación usando la misma lógica y conversiones de priceUnit * quantity que se usa en cada fila
+  // totalTenencia: Suma valor (precio ajustado * cantidad) de cada inversión
   const totalTenencia = displayedInvestments.reduce(
     (acc, inv) => {
       const key = getAssetKey(inv);
@@ -328,7 +313,7 @@ const Portfolio: React.FC = () => {
     0
   );
 
-  // Usar getResumenGlobalFiltrado para obtener el resumen global y resultadoPorcentaje
+  // resumenGlobal: Genera métricas generales (invertido, cambioTotal, valorActual, etc.)
   const resumenGlobal = getResumenGlobalFiltrado({
     inversiones: displayedInvestments,
     ppcMap,
@@ -341,7 +326,6 @@ const Portfolio: React.FC = () => {
     ? (resumenGlobal.cambioTotal / resumenGlobal.invertido) * 100
     : 0;
 
-  // Resumen global sin filtros de tipo
   const resumenGlobalCompleto = getResumenGlobalFiltrado({
     inversiones: investments,
     ppcMap,
@@ -360,7 +344,6 @@ const Portfolio: React.FC = () => {
         </div>
       )}
       <div className="space-y-6">
-        {/* Export CSV, Add Investment, and View in USD buttons grouped */}
         <motion.div
           initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
@@ -401,9 +384,7 @@ const Portfolio: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Resumen de totales (nuevo diseño y orden, todo centrado y uniforme) */}
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-6 gap-4 text-center text-sm font-medium">
-          {/* Total de inversiones */}
           <div className={`p-4 rounded-xl ${
             activeTypeFilter === 'Todos'
               ? 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700'
@@ -421,7 +402,6 @@ const Portfolio: React.FC = () => {
             </p>
           </div>
 
-          {/* Invertido */}
           <div className={`p-4 rounded-xl ${
             activeTypeFilter === 'Todos'
               ? 'bg-gradient-to-br from-blue-100 to-blue-50 text-blue-700'
@@ -440,7 +420,6 @@ const Portfolio: React.FC = () => {
             </p>
           </div>
 
-          {/* Valor Total del Portafolio (nuevo: global, color según ganancia/pérdida global) */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center col-span-full md:col-span-2 md:col-start-3 ${
             (() => {
               const totalActual = investments.reduce((acc, i) => {
@@ -481,7 +460,6 @@ const Portfolio: React.FC = () => {
             </p>
           </div>
 
-          {/* Actual */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
               const actual = resumenGlobal.valorActual;
@@ -497,7 +475,6 @@ const Portfolio: React.FC = () => {
             </p>
           </div>
 
-          {/* Resultado */}
           <div className={`p-4 rounded-xl shadow-sm border flex flex-col justify-center items-center ${
             (() => {
               const actual = resumenGlobal.valorActual;
@@ -521,9 +498,7 @@ const Portfolio: React.FC = () => {
             transition={{ duration: 0.3, delay: 0.1 }}
             className="bg-white backdrop-blur-sm bg-opacity-80 rounded-xl shadow-sm p-6 border border-gray-100"
         >
-          {/* Filtros, Desglosar, Buscador y Orden: nuevo orden y estilos */}
           <div className="flex flex-wrap gap-4 justify-between items-center mb-6">
-            {/* Filtros de tipo */}
             <div className="flex flex-wrap gap-2 items-center">
               {[
                 { label: 'Todos', value: 'Todos' },
@@ -558,7 +533,6 @@ const Portfolio: React.FC = () => {
                 />
               </button>
             </div>
-            {/* Buscador y Orden */}
             <div className="flex-1 flex gap-4 justify-end flex-wrap items-center">
               <div className="relative flex-1 w-full max-w-xs">
                 <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -602,8 +576,6 @@ const Portfolio: React.FC = () => {
             </div>
           </div>
 
-
-
           {loading ? (
               <div className="flex justify-center items-center h-40">
                 <Loader className="animate-spin text-blue-600" size={24} />
@@ -637,18 +609,15 @@ const Portfolio: React.FC = () => {
                   {sortedInvestments.map((investment) => {
                     const key = getAssetKey(investment);
                     const ppcKey = getNormalizedPpcKey(investment);
-                    // Usar siempre el precio de mercado más reciente si está disponible, luego purchasePrice
                     let currentPrice = marketPrices[key] ?? investment.purchasePrice;
 
                     if ((investment.type === 'CEDEAR' || investment.type === 'Acción') && cclPrice) {
-                      // Si el precio de mercado está en ARS pero la vista es en USD, convertir
                       if (investment.currency === 'USD' && !showInARS) {
                         currentPrice = currentPrice / cclPrice;
                       }
                     }
 
-                    // --- NUEVA LÓGICA: el PPC usado depende de mergeTransactions ---
-                    // Determinar si se agrupan transacciones
+                    // Ajustar PPC según mergeTransactions
                     const isMerged = mergeTransactions;
                     const priceOfPurchase = isMerged
                       ? ppcMap[ppcKey] ?? investment.purchasePrice // PPC global ponderado
@@ -657,27 +626,23 @@ const Portfolio: React.FC = () => {
                     let priceUnit = currentPrice;
                     let ppcUnit = priceOfPurchase;
 
-                    // Conversiones claras y únicas (corregidas para CEDEARs y Acciones):
+                    // Conversiones claras y únicas
                     if (investment.type === 'Cripto') {
                       if (showInARS && cclPrice) {
                         priceUnit = currentPrice * cclPrice;
                         ppcUnit = ppcUnit * cclPrice;
                       }
                     } else if (investment.type === 'CEDEAR' || investment.type === 'Acción') {
-                      // Si la compra fue en USD y la vista es ARS, SOLO convertir el PPC
                       if (investment.currency === 'USD' && showInARS && cclPrice) {
                         priceUnit = currentPrice; // YA está en ARS
                         ppcUnit = ppcUnit * cclPrice; // Pasar PPC de USD a ARS
                       }
-                      // Si la compra fue en ARS y la vista es USD, SOLO convertir el precio actual
                       else if (investment.currency === 'ARS' && !showInARS && cclPrice) {
                         priceUnit = currentPrice / cclPrice;
                         ppcUnit = ppcUnit / cclPrice; // ✅ convertir también el PPC
                       }
-                      // Si ambas en ARS o ambas en USD, no hacer nada
                     }
 
-                    // Debug: asegurarse que ambas variables sean por unidad y en la moneda correcta
                     console.log("DEBUG CAMBIO:", {
                       ticker: investment.ticker,
                       type: investment.type,
@@ -691,12 +656,9 @@ const Portfolio: React.FC = () => {
                       cclPrice
                     });
 
-                    // Calcular diferencia y % SOLO por unidad, luego multiplicar por cantidad para el cambio $
                     const differencePerUnit = priceUnit - ppcUnit;
                     const priceChange = differencePerUnit * investment.quantity;
                     const priceChangePercent = ppcUnit !== 0 ? (differencePerUnit / ppcUnit) * 100 : 0;
-
-                    // Valor de la inversión usando priceUnit (ya convertido)
                     const tenencia = priceUnit * investment.quantity;
                     const asignacion = totalTenencia > 0 ? (tenencia / totalTenencia) * 100 : 0;
 
@@ -717,7 +679,6 @@ const Portfolio: React.FC = () => {
                               </button>
                             </td>
                           )}
-                          {/* Ticker */}
                           <td className="py-4 px-4">
                             <div className="flex items-center gap-2">
                               <img
@@ -728,9 +689,7 @@ const Portfolio: React.FC = () => {
                               <span className="font-medium text-gray-800">{investment.ticker}</span>
                             </div>
                           </td>
-                          {/* Nombre */}
                           <td className="py-4 px-4 text-gray-600 max-w-[10rem] truncate">{investment.name}</td>
-                          {/* Precio actual */}
                           <td className="py-4 px-4 text-gray-600">
                             {
                               (() => {
@@ -753,17 +712,14 @@ const Portfolio: React.FC = () => {
                               })()
                             }
                           </td>
-                          {/* Cambio $ */}
                           <td className={`py-4 px-4 text-center ${priceChange >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {priceChange >= 0 ? '+' : ''}
                             {formatCurrency(priceChange, showInARS ? 'ARS' : 'USD')}
                           </td>
-                          {/* Cambio % */}
                           <td className={`py-4 px-4 text-center ${priceChangePercent >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                             {priceChangePercent >= 0 ? '+' : ''}
                             {priceChangePercent.toFixed(2)}%
                           </td>
-                          {/* Cantidad */}
                           <td
                             className={`py-4 px-4 text-center ${
                               investment.quantity > 0
@@ -775,17 +731,14 @@ const Portfolio: React.FC = () => {
                               ? investment.quantity.toFixed(4)
                               : Math.round(investment.quantity)}
                           </td>
-                          {/* PPC */}
                           <td className="py-4 px-4 text-gray-600 text-center">
                             {isNaN(ppcUnit)
                               ? <span className="italic text-gray-400">cargando</span>
                               : formatCurrency(ppcUnit, showInARS ? 'ARS' : 'USD')}
                           </td>
-                          {/* Tenencia */}
                           <td className="py-4 px-4 text-gray-600 text-center">
                             {formatCurrency(tenencia, showInARS ? 'ARS' : 'USD')}
                           </td>
-                          {/* Fecha de compra */}
                           {!mergeTransactions && (
                             <td className="py-4 px-4 text-gray-600 text-center">
                               {investment.purchaseDate
@@ -881,7 +834,6 @@ const Portfolio: React.FC = () => {
                 <p className="text-gray-500">Aún no has agregado inversiones.</p>
               </div>
           )}
-          {/* Agregar inversión (botón secundario, centrado debajo de la tabla) */}
           <div className="mt-6 flex justify-center">
             <button
               onClick={() => setShowAddModal(true)}
@@ -893,7 +845,6 @@ const Portfolio: React.FC = () => {
           </div>
         </motion.div>
 
-        {/* Add Investment Modal */}
         {showAddModal && (
             <motion.div
                 initial={{ opacity: 0 }}
@@ -958,8 +909,6 @@ const Portfolio: React.FC = () => {
                   }}
                   className="space-y-4"
                 >
-                  {/* Tipo de inversión */}
-                  {/* --- Asset Selection: búsqueda e íconos --- */}
                   <div className="mb-4">
                     <label htmlFor="assetSearch" className="block text-sm font-medium text-gray-800 mb-1">
                       Seleccionar Activo
@@ -1181,7 +1130,4 @@ const Portfolio: React.FC = () => {
     </>
   );
 };
-
-
-
 export default Portfolio;

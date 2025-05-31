@@ -27,8 +27,15 @@ interface PredefinedAsset {
   id?: string;
 }
 
+/**
+ * Hook principal para gestionar los datos de cartera del usuario.
+ * - Obtiene, normaliza y actualiza las inversiones desde Supabase.
+ * - Integra precios de mercado, activos precargados y cotización CCL.
+ * - Expone funciones para CRUD, cálculos financieros y exportación.
+ * - Incluye lógica de resumen global, filtrado y evolución de capital.
+ */
 export function usePortfolioData() {
-  // Chequea si el precio es un número válido y en un rango razonable
+  // Verifica si el precio es numérico, finito y dentro de un rango razonable.
   function isValidPrice(price: number) {
     return typeof price === "number" && isFinite(price) && price > 0 && price < 10000000;
   }
@@ -195,14 +202,15 @@ export function usePortfolioData() {
     return m;
   }, [predefinedAssets]);
 
-  // Normaliza tipo y quita tildes
+  // Normaliza el tipo de activo eliminando tildes y pasando a minúsculas.
   const normalizeType = (type: string) =>
     type.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 
-  // Funciones helper expuestas
+  // Retorna la clave única de un activo combinando tipo y ticker.
   const getAssetKey = (inv: Investment) =>
     inv.type + '-' + inv.ticker.toUpperCase();
 
+  // Devuelve la clave normalizada para el PPC usando ticker y tipo normalizado.
   const getNormalizedPpcKey = (inv: Investment) => {
     const norm = normalizeType(inv.type);
     return inv.ticker.toUpperCase() + '-' + norm;
@@ -213,7 +221,7 @@ export function usePortfolioData() {
     [investments]
   );
 
-  // Refrescar la lista de inversiones
+  // Refresca la lista de inversiones desde la base de datos.
   const reloadInvestments = async () => {
     if (!user?.id) return;
     setLoading(true);
@@ -269,7 +277,7 @@ export function usePortfolioData() {
     }
   };
 
-  // Crear
+  // Agrega una nueva inversión a la cartera y la persiste en la base de datos.
   async function addInvestment(inv: Omit<Investment, 'id' | 'isFavorite'>) {
     if (!user?.id) throw new Error('No autenticado');
     const formattedDate = new Date(inv.purchaseDate).toISOString().split('T')[0];
@@ -307,7 +315,7 @@ export function usePortfolioData() {
     setInvestments(prev => [newInvestment, ...prev]);
   }
 
-  // Actualizar
+  // Actualiza una inversión existente en la base de datos según su id.
   async function updateInvestment(id: string, inv: Partial<Omit<Investment, 'id'>>) {
     if (!user?.id) throw new Error('No autenticado');
     // Construimos el objeto updates solo con columnas válidas en la BD (snake_case)
@@ -347,7 +355,7 @@ export function usePortfolioData() {
     setError(null);
   }
 
-  // Borrar
+  // Elimina una inversión de la cartera y la base de datos por su id.
   async function deleteInvestment(id: string) {
     if (!user?.id) throw new Error('No autenticado');
     const { error } = await supabase
@@ -365,7 +373,7 @@ export function usePortfolioData() {
     setError(null);
   }
 
-  // Toggle favorito
+  // Alterna el estado de favorito de una inversión y lo persiste.
   async function toggleFavorite(id: string) {
     const inv = investments.find(i => i.id === id);
     if (!inv) return;
@@ -398,7 +406,7 @@ export function usePortfolioData() {
     }
   }
 
-  // Handler for asset selection with immediate purchasePrice calculation
+  // Maneja la selección de un activo precargado y actualiza los datos del formulario.
   function handleAssetSelect(asset: PredefinedAsset, setNewInvestment: Function, setCurrentPrice: Function) {
     const price = asset.price;
     setCurrentPrice(price);
@@ -425,6 +433,7 @@ export function usePortfolioData() {
     }));
   }
 
+  // Exporta todas las inversiones actuales a un archivo CSV descargable.
   function exportToCSV() {
     if (!investments.length) return;
 
@@ -541,10 +550,7 @@ export function usePortfolioData() {
   }, [investments]);
 
   // --- RESUMEN GLOBAL FILTRADO ---
-  /**
-   * Calcula el resumen global (valorActual, invertido, cambioTotal) sobre un array de inversiones filtradas y agrupadas,
-   * usando el mapa de PPC, precios de mercado, flags de merge y ARS/USD, y precio CCL.
-   */
+  // Calcula el resumen global (valor actual, invertido, cambio total) de un conjunto filtrado de inversiones.
   function getResumenGlobalFiltrado({
     inversiones,
     ppcMap,
@@ -603,18 +609,12 @@ export function usePortfolioData() {
     );
   }
 
-  /**
-   * Devuelve las inversiones filtradas por tipo y búsqueda, y agrupadas por ticker-tipo si merge está activo.
-   * @param params
-   *  - typeFilter: 'Todos' | 'CEDEAR' | 'Cripto' | 'Acción'
-   *  - merge: boolean
-   *  - search: string
-   */
+  // Devuelve las inversiones filtradas por tipo y búsqueda, y agrupadas por ticker-tipo si merge está activo.
   function getDisplayedInvestments({
-                                     typeFilter = 'Todos',
-                                     merge = true,
-                                     search = ''
-                                   }: {
+    typeFilter = 'Todos',
+    merge = true,
+    search = ''
+  }: {
     typeFilter: 'Todos' | 'CEDEAR' | 'Cripto' | 'Acción',
     merge: boolean,
     search: string
@@ -654,20 +654,13 @@ export function usePortfolioData() {
     }
   }
 
-  /**
-   * Devuelve los totales filtrados y mergeados, para el dashboard o resumen filtrado:
-   * - valorActual: suma del valor actual de los activos filtrados
-   * - invertido: suma invertida original
-   * - cambioTotal: ganancia/pérdida absoluta
-   * - resultadoPorcentaje: ganancia/pérdida %
-   * - totalInversiones: cantidad (mergeada o no)
-   */
+  // Devuelve el resumen filtrado y mergeado para el dashboard, incluyendo totales y porcentaje de ganancia/pérdida.
   function getResumenDashboardFiltrado({
-                                         typeFilter = 'Todos',
-                                         merge = true,
-                                         search = '',
-                                         showInARS = true,
-                                       }: {
+    typeFilter = 'Todos',
+    merge = true,
+    search = '',
+    showInARS = true,
+  }: {
     typeFilter?: 'Todos' | 'CEDEAR' | 'Cripto' | 'Acción',
     merge?: boolean,
     search?: string,
@@ -698,12 +691,7 @@ export function usePortfolioData() {
     };
   }
 
-  /**
-   * Devuelve la evolución del capital a lo largo del tiempo para graficar.
-   * Agrupa por mes y tipo ('Cripto', 'CEDEAR', 'Acción') y el total.
-   * Si showInARS es true, todos los valores están en ARS; si es false, en USD.
-   * Solo considera compras (no ventas).
-   */
+  // Calcula la evolución histórica del capital agrupada por mes y tipo de activo, para gráficos.
   function getCapitalEvolutionData({ showInARS = true }: { showInARS?: boolean } = {}) {
     // Ordenar inversiones por fecha
     const sorted = [...investments].sort((a, b) =>

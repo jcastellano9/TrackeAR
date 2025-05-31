@@ -5,11 +5,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { User, Mail, Calendar, Shield, Key, LogOut, AlertCircle, Check, Eye, EyeOff } from 'lucide-react';
 
+// Profile: Componente para gestionar datos de usuario y seguridad
 const Profile: React.FC = () => {
   const { user, signOut } = useAuth();
   const currentPasswordRef = useRef<HTMLInputElement>(null);
   const changePasswordButtonRef = useRef<HTMLButtonElement>(null);
 
+  // validatePasswordChange: Verifica campos y coincidencia de nuevas contraseñas
   const validatePasswordChange = () => {
     if (!currentPassword || !newPassword || !confirmPassword) return 'Por favor complete todos los campos';
     if (newPassword !== confirmPassword) return 'Las contraseñas nuevas no coinciden';
@@ -17,6 +19,7 @@ const Profile: React.FC = () => {
     return null;
   };
 
+  // useState: estados para control de cambio de contraseña, campos y mensajes
   const [isChangingPassword, setIsChangingPassword] = useState(false);
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
@@ -36,6 +39,7 @@ const Profile: React.FC = () => {
     special: false
   });
   // Password validation and strength logic
+  // validatePassword: Actualiza validación de criterios de seguridad de la nueva contraseña
   const validatePassword = (value: string) => {
     setPasswordValidation({
       length: value.length >= 6,
@@ -46,14 +50,17 @@ const Profile: React.FC = () => {
     });
   };
 
+  // passwordStrength: Calcula nivel de fortaleza de la contraseña según criterios
   const passwordStrength = Object.values(passwordValidation).filter(Boolean).length;
 
+  // getPasswordStrengthClass: Devuelve clase de color según nivel de fortaleza
   const getPasswordStrengthClass = () => {
     if (passwordStrength <= 2) return 'bg-red-500';
     if (passwordStrength <= 4) return 'bg-yellow-500';
     return 'bg-green-500';
   };
 
+  // useEffect: Enfoca el campo o botón según si se está cambiando contraseña
   useEffect(() => {
     if (isChangingPassword) {
       currentPasswordRef.current?.focus();
@@ -62,6 +69,7 @@ const Profile: React.FC = () => {
     }
   }, [isChangingPassword]);
 
+  // handlePasswordChange: Envía formulario para cambiar contraseña usando Supabase
   const handlePasswordChange = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -110,6 +118,7 @@ const Profile: React.FC = () => {
     }
   };
 
+  // handleLogout: Cierra sesión del usuario
   const handleLogout = async () => {
     try {
       await signOut();
@@ -118,8 +127,10 @@ const Profile: React.FC = () => {
     }
   };
 
+  // Render: Interfaz de perfil con sección de información, acciones y modal de cambio de contraseña
   return (
     <div className="space-y-6">
+      // Encabezado: Título e introducción del perfil de usuario
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -129,8 +140,9 @@ const Profile: React.FC = () => {
         <p className="text-gray-600 dark:text-gray-300">Gestiona tu información personal y seguridad</p>
       </motion.div>
 
+      // Contenedor principal: Información de cuenta, foto y acciones rápidas
       <div className="space-y-6 lg:space-y-0 lg:flex lg:space-x-6">
-        {/* Información de la Cuenta */}
+        // Sección: Información de la Cuenta (correo y fecha de registro)
         <div className="lg:w-1/3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -173,7 +185,7 @@ const Profile: React.FC = () => {
             </div>
           </motion.div>
         </div>
-        {/* Foto de perfil */}
+        // Sección: Foto de perfil generada a partir del email
         <div className="lg:w-1/3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -192,7 +204,7 @@ const Profile: React.FC = () => {
             </div>
           </motion.div>
         </div>
-        {/* Acciones Rápidas */}
+        // Sección: Acciones Rápidas (botones para cambiar contraseña y cerrar sesión)
         <div className="lg:w-1/3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -229,7 +241,7 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      {/* Password Change Modal */}
+      // Modal: Formulario para cambiar contraseña
       {isChangingPassword && (
         <motion.div
           role="dialog"
@@ -244,8 +256,10 @@ const Profile: React.FC = () => {
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 max-w-md w-full transition-colors duration-300"
           >
+            // Título del modal: "Cambiar Contraseña"
             <h3 id="change-password-title" className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Cambiar Contraseña</h3>
 
+            // Mensajes de validación: Muestra errores o confirmación de éxito
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 dark:bg-red-900 dark:border-red-600 dark:text-red-200">
                 <AlertCircle size={18} className="mr-2 flex-shrink-0" />
@@ -260,7 +274,9 @@ const Profile: React.FC = () => {
               </div>
             )}
 
+            // Formulario: Campos para contraseña actual, nueva y confirmación
             <form onSubmit={handlePasswordChange} className="space-y-4">
+              // Campo: Contraseña actual con visibilidad toggle
               <div>
                 <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Contraseña actual
@@ -284,6 +300,7 @@ const Profile: React.FC = () => {
                 </div>
               </div>
 
+              // Campo: Nueva contraseña con indicador de fortaleza y validación
               <div>
                 <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Nueva contraseña
@@ -339,6 +356,7 @@ const Profile: React.FC = () => {
                 )}
               </div>
 
+              // Campo: Confirmación de la nueva contraseña con visibilidad toggle
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Confirmar nueva contraseña
