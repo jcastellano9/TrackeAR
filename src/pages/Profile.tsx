@@ -130,7 +130,7 @@ const Profile: React.FC = () => {
   // Render: Interfaz de perfil con sección de información, acciones y modal de cambio de contraseña
   return (
     <div className="space-y-6">
-      // Encabezado: Título e introducción del perfil de usuario
+      {/* Encabezado: Título e introducción del perfil de usuario */}
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
@@ -140,9 +140,9 @@ const Profile: React.FC = () => {
         <p className="text-gray-600 dark:text-gray-300">Gestiona tu información personal y seguridad</p>
       </motion.div>
 
-      // Contenedor principal: Información de cuenta, foto y acciones rápidas
+      {/* Contenedor principal: Información de cuenta, foto y acciones rápidas */}
       <div className="space-y-6 lg:space-y-0 lg:flex lg:space-x-6">
-        // Sección: Información de la Cuenta (correo y fecha de registro)
+        {/* Sección: Información de la Cuenta (correo y fecha de registro) */}
         <div className="lg:w-1/3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -185,7 +185,7 @@ const Profile: React.FC = () => {
             </div>
           </motion.div>
         </div>
-        // Sección: Foto de perfil generada a partir del email
+        {/* Sección: Foto de perfil generada a partir del email */}
         <div className="lg:w-1/3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -204,7 +204,7 @@ const Profile: React.FC = () => {
             </div>
           </motion.div>
         </div>
-        // Sección: Acciones Rápidas (botones para cambiar contraseña y cerrar sesión)
+        {/* Sección: Acciones Rápidas (botones para cambiar contraseña y cerrar sesión) */}
         <div className="lg:w-1/3">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -241,7 +241,7 @@ const Profile: React.FC = () => {
         </div>
       </div>
 
-      // Modal: Formulario para cambiar contraseña
+      {/* Modal: Formulario para cambiar contraseña */}
       {isChangingPassword && (
         <motion.div
           role="dialog"
@@ -256,10 +256,10 @@ const Profile: React.FC = () => {
             animate={{ scale: 1, opacity: 1 }}
             className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 max-w-md w-full transition-colors duration-300"
           >
-            // Título del modal: "Cambiar Contraseña"
+            {/* Título del modal: "Cambiar Contraseña" */}
             <h3 id="change-password-title" className="text-xl font-semibold text-gray-800 dark:text-gray-100 mb-4">Cambiar Contraseña</h3>
 
-            // Mensajes de validación: Muestra errores o confirmación de éxito
+            {/* Mensajes de validación: Muestra errores o confirmación de éxito */}
             {error && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center text-red-700 dark:bg-red-900 dark:border-red-600 dark:text-red-200">
                 <AlertCircle size={18} className="mr-2 flex-shrink-0" />
@@ -274,9 +274,9 @@ const Profile: React.FC = () => {
               </div>
             )}
 
-            // Formulario: Campos para contraseña actual, nueva y confirmación
+            {/* Formulario: Campos para contraseña actual, nueva y confirmación */}
             <form onSubmit={handlePasswordChange} className="space-y-4">
-              // Campo: Contraseña actual con visibilidad toggle
+              {/* Campo: Contraseña actual con visibilidad toggle */}
               <div>
                 <label htmlFor="currentPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Contraseña actual
@@ -300,7 +300,7 @@ const Profile: React.FC = () => {
                 </div>
               </div>
 
-              // Campo: Nueva contraseña con indicador de fortaleza y validación
+              {/* Campo: Nueva contraseña con indicador de fortaleza y validación */}
               <div>
                 <label htmlFor="newPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Nueva contraseña
@@ -356,7 +356,7 @@ const Profile: React.FC = () => {
                 )}
               </div>
 
-              // Campo: Confirmación de la nueva contraseña con visibilidad toggle
+              {/* Campo: Confirmación de la nueva contraseña con visibilidad toggle */}
               <div>
                 <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
                   Confirmar nueva contraseña
