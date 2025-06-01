@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-// Iconos de emoji para cotizaciones
+// Iconos de emoji para cotizacionessss
 const dollarEmoji: Record<string, string> = {
   'USD Oficial': '💵',
   'USD Blue': '🔵',

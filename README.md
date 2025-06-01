@@ -27,7 +27,7 @@
 - **Visualización:** Chart.js
 - **Control de versiones:** Git + GitHub
 - **IDE:** WebStorm
-- **Sistema operativo:** macOS
+- **Sistema operativo:** MacOS
 
 ---
 
