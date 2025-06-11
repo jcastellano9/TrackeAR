@@ -176,7 +176,7 @@ export function usePortfolioData() {
           ticker: item.ticker,
           name: item.name,
           type: 'Acción',
-          logo: item.icon,
+          logo: item.imagen || item.icon,
           price: item.ars?.c,
         }));
         setPredefinedAssets([...formattedAssets, ...cedears, ...acciones]);
