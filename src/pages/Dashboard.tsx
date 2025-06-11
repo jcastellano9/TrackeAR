@@ -230,26 +230,23 @@ const Dashboard: React.FC = () => {
       setCapitalData({ labels: [], datasets: [] });
       return;
     }
-    // Extraer etiquetas (fechas) y series sin modificaciones
     const labels = filteredDataRaw.map(item => item.fecha);
     const seriesCripto = filteredDataRaw.map(item => item.Cripto);
     const seriesCedear = filteredDataRaw.map(item => item.CEDEAR);
     const seriesAccion = filteredDataRaw.map(item => item['Acción']);
 
-    // Lógica de ajuste para vista ARS/USD
+    // Ajustar las series según la moneda seleccionada
     const cclRate = cclPrice ?? 1;
     let seriesCriptoAdjusted = seriesCripto;
     let seriesCedearAdjusted = seriesCedear;
     let seriesAccionAdjusted = seriesAccion;
-    if (showInARS) {
-      // En ARS, multiplicar CEDEAR y Acción por CCL
-      seriesCedearAdjusted = seriesCedear.map(val => val / cclRate);
-      seriesAccionAdjusted = seriesAccion.map(val => val / cclRate);
-    } else {
-      // En USD, dividir Cripto por CCL
+    if (!showInARS) {
+      // Si está en vista USD, convertir todo a USD usando CCL
+      seriesCriptoAdjusted = seriesCripto.map(val => val / cclRate);
       seriesCedearAdjusted = seriesCedear.map(val => val / cclRate);
       seriesAccionAdjusted = seriesAccion.map(val => val / cclRate);
     }
+    // La serie total suma todos los activos ya ajustados
     const seriesTotal = seriesCriptoAdjusted.map((_, idx) =>
       seriesCriptoAdjusted[idx] + seriesCedearAdjusted[idx] + seriesAccionAdjusted[idx]
     );
@@ -261,7 +258,7 @@ const Dashboard: React.FC = () => {
       Acción: { bg: 'rgba(14, 165, 233, 0.2)', border: '#0EA5E9' },
     };
 
-    // Construir datasets filtrando por typeFilter
+    // Construir datasets filtrando por typeFilter, usando las series ajustadas
     let datasets;
     if (typeFilter === 'Todos') {
       datasets = [
